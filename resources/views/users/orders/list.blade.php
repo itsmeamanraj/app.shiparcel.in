@@ -77,11 +77,21 @@
                 <div class="card-body p-24">
                     <div class="tab-content" id="pills-tabContent">
                         <!-- booked -->
+                         <div class="mb-3" id="bulkActionBar" style="display: none;">
+                            <button class="btn btn-danger btn-sm" onclick="bulkDownloadLabels()">Download Selected Labels</button>
+                        </div>
                         <div class="tab-pane fade show active" id="pills-all" role="tabpanel" aria-labelledby="pills-all-tab">
                             <div class="table-responsive">
                                 <table class="table basic-border-table mb-0">
                                     <thead>
                                         <tr>
+                                            <th>
+                                                <input type="checkbox" id="selectAll" name="select_all"
+                                                onclick="toggleSelectAll(this)" class="form-check-input"
+                                                style="width: 16px; height: 16px;" onchange="handleCheckboxChange()">
+
+                                            </th>
+
                                             <th>Order ID</th>
                                             <th>AWB Number</th>
                                             <th>Customer Name</th>
@@ -95,6 +105,11 @@
                                     <tbody>
                                         @foreach($bookedOrders as $order)
                                         <tr>
+                                             <td>
+                                                <input type="checkbox" class="rowCheckbox form-check-input"
+                                                name="selected_awbs[]" id="awb_{{ $order->awb_number }}" value="{{ $order->awb_number }}"
+                                                style="width: 16px; height: 16px;" onchange="handleCheckboxChange()">
+                                            </td>
                                             <td>#{{ $order->id }}</td>
                                             <td>{{ $order->awb_number ?? 'N/A' }}</td>
                                             <td>{{ $order->consignee_name }}</td>
