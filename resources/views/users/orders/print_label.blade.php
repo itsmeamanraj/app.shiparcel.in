@@ -155,131 +155,124 @@
     </style>
 </head>
 
-<body cz-shortcut-listen="true" data-new-gr-c-s-check-loaded="14.1245.0" data-gr-ext-installed="">
+<body>
     <button type="button" class="btn btn-sm btn-success printPage" onclick="window.print();"
-        style="position: fixed; top: 10%; right: 2%;"><i class="fa fa-print"></i> Print</button>
-    <table class="manifest-table">
-        <tbody>
-            <tr style="vertical-align: baseline;">
-                <td class="d-flex align-items-center justify-content-between py-3 border-0">
-                    <h3 class="w-75">
-                        {{ $orderData->customer_name ?? '' }}</h3>
+        style="position: fixed; top: 10%; right: 2%;">
+        <i class="fa fa-print"></i> Print
+    </button>
 
-                </td>
-                <td class="text-center">
-                    <img src="{{ asset('assets/images/ekart.png') }}" alt="{{ $orderData->courier_name ?? '' }}"
-                        style="width: 100%;">
+    @foreach ($orders as $order)
+        <table class="manifest-table" style="page-break-after: always;">
+            <tbody>
+                <tr style="vertical-align: baseline;">
+                    <td class="d-flex align-items-center justify-content-between py-3 border-0">
+                        <h3 class="w-75">{{ $order->customer_name ?? '' }}</h3>
+                    </td>
+                    <td class="text-center">
+                        <img src="{{ asset('assets/images/ekart.png') }}" alt="{{ $order->courier_name ?? '' }}"
+                            style="width: 100%;">
+                        <p style="font-size: 14px; margin-bottom:0px" class="extype">
+                            <b></b> {{ $order->express_type ?? '' }}
+                        </p>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="text-center">
+                        <img id="barcodebarcode_1" style="width: 50% !important; height: 100px; margin: 10px"
+                            src="data:image/png;base64,{{ DNS1D::getBarcodePNG($order->awb_number, 'C128') }}"
+                            alt="barcode" /><br>
+                        {{ $order->awb_number ?? '' }}
+                    </td>
 
-                    <p style="font-size: 14px; margin-bottom:0px" class="extype"><b></b> {{ $orderData->express_type ?? '' }} </p>
-                </td>
-            </tr>
-            <tr>
-                <td class="text-center">
-                    <!--<span class="barcode" style="color: #000000;">*34572714100784*</span>-->
-                    <img id="barcodebarcode_1" style="width: 50% !important; height: 100px; margin: 10px"
-                        src="data:image/png;base64,{{ DNS1D::getBarcodePNG($orderData->awb_number, 'C128') }}"
-                        alt="barcode" /><br>
-                        {{ $orderData->awb_number ?? '' }}
-                </td>
+                    <td class="text-center">
+                        <br>
+                        <h4><b>({{ $order->payment_mode ?? '' }})</b></h4>
+                    </td>
+                </tr>
+                <tr style="line-height: 20px;">
+                    <td class="address-cell" style="width: 70%;">
+                        <p>Deliver To:</p>
+                        <h4 class="mb5">{{ $order->consignee_name ?? '' }}</h4>
+                        <p class="mb5">{{ $order->consignee_mobile ?? '' }}</p>
+                        <p style="word-break: break-word !important;"><span><b>Address:</b></span>
+                            {{ $order->consignee_address1 ?? '' }}
+                        </p>
+                        <p>{{ $order->consignee_address2 ?? '' }}</p>
+                        <p>Pin - {{ $order->consignee_pincode ?? '' }}</p>
+                    </td>
 
-                <td class="text-center">
+                    <td>
+                        <h6 class="mb5"><b>Order Id:</b> {{ $order->client_order_id ?? '' }}</h6>
+                        <h6 class="mb5">Date: {{ \Carbon\Carbon::parse($order->created_at)->format('d-m-Y') }}</h6>
+                        <h6 class="mb5">Weight: {{ $order->shipment_weight ?? '' }} kg</h6>
+                        <h6 class="mb5">Invoice Value: Rs. {{ $order->order_amount ?? '' }}</h6>
+                    </td>
+                </tr>
 
-                    <br>
-                    <h4><b>({{ $orderData->payment_mode ?? ''  }})</b></h4>
-                </td>
+                {{-- Product Table --}}
+                <tr style="padding-top: 2px;">
+                    <td class="product_left" colspan="2">
+                        @php
+                            $products = DB::table('products')
+                                ->where('products.order_id', $order->id)
+                                ->select('products.product_name', 'products.product_sku', 'products.product_quantity', 'products.product_value')
+                                ->get();
 
-            </tr>
-            <tr style="line-height: 20px;">
-                <td class="address-cell" style="width: 70%;">
-                    <p>Deliver To:
-                    </p>
-                    <h4 class="mb5">{{ $orderData->consignee_name ?? ''  }}</h4>
-                    <p class="mb5">
-                        {{ $orderData->consignee_mobile ?? ''  }} </p>
+                            $totalQty = 0;
+                            $totalPrice = 0;
+                        @endphp
 
-                    <p style="word-break: break-word !important;"><span><b>Address:</b></span>
-                        {{ $orderData->consignee_address1  ?? ''  }} </p>
-                    <p>{{ $orderData->consignee_address2 ?? ''  }}</p>
-                    <p>Pin - {{ $orderData->consignee_pincode ?? ''  }}</p>
-                </td>
-
-                <td>
-                    <!-- <p>Order Details</p> -->
-                    <!-- <h6 class="mb5">GSTIN: </h6> -->
-                    <h6 class="mb5"><b>Order Id:</b> {{ $orderData->client_order_id ?? ''  }}</h6>
-                    {{-- <h6 class="mb5">
-                        <b>Ref./Invoice#:</b><br>
-                        PX13659825
-                    </h6> --}}
-                    <h6 class="mb5">Date: {{ \Carbon\Carbon::parse($orderData->created_at)->format('d-m-Y') }}</h6>
-                    <h6 class="mb5">Weight: {{ $orderData->shipment_weight ?? ''  }} kg</h6>
-
-                    <h6 class="mb5">Invoice Value: Rs. {{ $orderData->order_amount ?? ''  }} </h6>
-                </td>
-            </tr>
-            <tr style="padding-top: 2px;">
-                <td class="product_left" colspan="2">
-                    @php
-                        $products = DB::table('products')
-                            ->where('products.order_id', $orderData->id)
-                            ->select('products.product_name', 'products.product_sku', 'products.product_quantity', 'products.product_value')
-                            ->get();
-
-                        $totalQty = 0;
-                        $totalPrice = 0;
-                    @endphp
-                    <table class="prod-table">
-                        <thead>
-                            <tr>
-                                <th colspan="2">Product Name</th>
-                                <th>SKU</th>
-                                <th>Qty</th>
-                                <th style="border-right: 0; width:16%; text-align:right;" class="hide_colume">Price</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach ($products as $product)
+                        <table class="prod-table">
+                            <thead>
                                 <tr>
-                                    <td colspan="2">{{ $product->product_name ?? ''  }}</td>
-                                    <td>{{ $product->product_sku ?? ''  }}</td>
-                                    <td>{{ $product->product_quantity ?? '' }}</td>
-                                    <td class="text-right hide_colume">{{ $product->product_value ?? '' }}</td>
+                                    <th colspan="2">Product Name</th>
+                                    <th>SKU</th>
+                                    <th>Qty</th>
+                                    <th style="border-right: 0; width:16%; text-align:right;" class="hide_colume">Price</th>
                                 </tr>
-                                @php
-                                    $totalQty += $product->product_quantity;
-                                    $totalPrice += $product->product_value * $product->product_quantity;
-                                @endphp
-                            @endforeach
+                            </thead>
+                            <tbody>
+                                @foreach ($products as $product)
+                                    <tr>
+                                        <td colspan="2">{{ $product->product_name ?? '' }}</td>
+                                        <td>{{ $product->product_sku ?? '' }}</td>
+                                        <td>{{ $product->product_quantity ?? '' }}</td>
+                                        <td class="text-right hide_colume">{{ $product->product_value ?? '' }}</td>
+                                    </tr>
+                                    @php
+                                        $totalQty += $product->product_quantity;
+                                        $totalPrice += $product->product_value * $product->product_quantity;
+                                    @endphp
+                                @endforeach
 
-                            <tr class="hide_colume">
-                                <td colspan="2" class="text-right"><p>Total</p></td>
-                                <td></td>
-                                <td><p>{{ $totalQty ?? '' }}</p></td>
-                                <td class="text-right"><p>Rs.{{ $totalPrice ?? '' }}</p></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </td>
-            </tr>
-            <tr style="line-height: 1.5;">
-                <td colspan="2">
+                                <tr class="hide_colume">
+                                    <td colspan="2" class="text-right"><p>Total</p></td>
+                                    <td></td>
+                                    <td><p>{{ $totalQty ?? '' }}</p></td>
+                                    <td class="text-right"><p>Rs.{{ $totalPrice ?? '' }}</p></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </td>
+                </tr>
 
-                    <h6>If not delivered, Return to:</h6>
-
-                    <p style="font-size: 14px; margin-bottom:0px"><b>Warehouse Name:</b> {{ $orderData->return_sender_name ?? '' }}
-                    </p>
-                    <p style="font-size: 14px;">{{ $orderData->return_full_address ?? '' }} {{ $orderData->return_state ?? ''  }} {{ $orderData->return_city ?? '' }} {{ $orderData->return_pincode ?? '' }} <br> Phone: {{ $orderData->return_phone ?? '' }}  </p>
-                </td>
-
-            </tr>
-        </tbody>
-    </table>
-
-
-
-
-
-
+                {{-- Return Address --}}
+                <tr style="line-height: 1.5;">
+                    <td colspan="2">
+                        <h6>If not delivered, Return to:</h6>
+                        <p style="font-size: 14px; margin-bottom:0px"><b>Warehouse Name:</b> {{ $order->return_sender_name ?? '' }}</p>
+                        <p style="font-size: 14px;">
+                            {{ $order->return_full_address ?? '' }},
+                            {{ $order->return_state ?? '' }},
+                            {{ $order->return_city ?? '' }},
+                            {{ $order->return_pincode ?? '' }}
+                            <br>Phone: {{ $order->return_phone ?? '' }}
+                        </p>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    @endforeach
 </body>
 <grammarly-desktop-integration data-grammarly-shadow-root="true"></grammarly-desktop-integration>
 
