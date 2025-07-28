@@ -264,31 +264,122 @@ function showMessage(message, type) {
 //     });
 // }
 
-function openLabelData(awbNumber) {
-    if (!awbNumber) {
-        showMessage("AWB number is missing!", "danger");
+// function openLabelData(awbNumber) {
+//     if (!awbNumber) {
+//         showMessage("AWB number is missing!", "danger");
+//         return;
+//     }
+
+//     const form = document.createElement('form');
+//     form.method = 'POST';
+//     form.action = ORDER_LABEL_URL; // this should point to your Laravel route
+//     form.target = '_blank';
+
+//     const csrfInput = document.createElement('input');
+//     csrfInput.type = 'hidden';
+//     csrfInput.name = '_token';
+//     csrfInput.value = CSRF_TOKEN; // make sure CSRF_TOKEN is defined globally
+
+//     const awbInput = document.createElement('input');
+//     awbInput.type = 'hidden';
+//     awbInput.name = 'awb_number';
+//     awbInput.value = awbNumber;
+
+//     form.appendChild(csrfInput);
+//     form.appendChild(awbInput);
+//     document.body.appendChild(form);
+//     form.submit();
+//     document.body.removeChild(form);
+// }
+
+function toggleSelectAll(source) {
+        const checkboxes = document.querySelectorAll('.rowCheckbox');
+        checkboxes.forEach(cb => cb.checked = source.checked);
+    }
+
+    
+function openLabelData(awbNumbers) {
+    if (!awbNumbers || (Array.isArray(awbNumbers) && awbNumbers.length === 0)) {
+        showMessage("AWB number(s) missing!", "danger");
         return;
+    }
+
+    // Normalize to array
+    if (!Array.isArray(awbNumbers)) {
+        awbNumbers = [awbNumbers];
     }
 
     const form = document.createElement('form');
     form.method = 'POST';
-    form.action = ORDER_LABEL_URL; // this should point to your Laravel route
+    form.action = ORDER_LABEL_URL;
     form.target = '_blank';
 
+    // CSRF token
     const csrfInput = document.createElement('input');
     csrfInput.type = 'hidden';
     csrfInput.name = '_token';
-    csrfInput.value = CSRF_TOKEN; // make sure CSRF_TOKEN is defined globally
-
-    const awbInput = document.createElement('input');
-    awbInput.type = 'hidden';
-    awbInput.name = 'awb_number';
-    awbInput.value = awbNumber;
-
+    csrfInput.value = CSRF_TOKEN;
     form.appendChild(csrfInput);
-    form.appendChild(awbInput);
+
+    // Append all awb_numbers as array
+    awbNumbers.forEach(function(awb) {
+        const awbInput = document.createElement('input');
+        awbInput.type = 'hidden';
+        awbInput.name = 'awb_numbers[]';
+        awbInput.value = awb;
+        form.appendChild(awbInput);
+    });
+
     document.body.appendChild(form);
     form.submit();
     document.body.removeChild(form);
 }
+
+
+function toggleSelectAll(source) {
+        const checkboxes = document.querySelectorAll('.rowCheckbox');
+        checkboxes.forEach(cb => cb.checked = source.checked);
+        handleCheckboxChange(); // update bulk button visibility
+    }
+
+    function handleCheckboxChange() {
+        const selected = document.querySelectorAll('.rowCheckbox:checked').length;
+        document.getElementById('bulkActionBar').style.display = selected > 0 ? 'block' : 'none';
+    }
+
+    function bulkDownloadLabels() {
+        const selectedAwbs = Array.from(document.querySelectorAll('.rowCheckbox:checked'))
+                                .map(cb => cb.value)
+                                .filter(awb => awb !== '');
+
+        if (selectedAwbs.length === 0) {
+            showMessage("Please select at least one order with a valid AWB number!", "danger");
+            return;
+        }
+
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = ORDER_LABEL_URL;
+        form.target = '_blank';
+
+        const csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = '_token';
+        csrfInput.value = CSRF_TOKEN;
+
+        form.appendChild(csrfInput);
+
+        selectedAwbs.forEach(awb => {
+            const awbInput = document.createElement('input');
+            awbInput.type = 'hidden';
+            awbInput.name = 'awb_numbers[]'; // 🔁 ARRAY INPUT!
+            awbInput.value = awb;
+            form.appendChild(awbInput);
+        });
+
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
+    }
+
 
