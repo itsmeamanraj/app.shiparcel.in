@@ -348,6 +348,8 @@ class OrderController extends Controller
     public function list(Request $request)
     {
         $search = $request->search;
+        $from_date = $request->from_date;
+        $to_date = $request->to_date;
 
         $baseQuery = Order::where('user_id', Auth::user()->id)
             ->select([
@@ -366,13 +368,22 @@ class OrderController extends Controller
             $baseQuery->where('awb_number', 'LIKE', "%{$search}%");
         }
 
+        // Apply date filter (date-only comparison)
+        if (!empty($from_date) && !empty($to_date)) {
+            $baseQuery->whereBetween(DB::raw('DATE(created_at)'), [$from_date, $to_date]);
+        }
+
         $bookedQuery = clone $baseQuery;
         $cancelledQuery = clone $baseQuery;
         $allOrdersQuery = clone $baseQuery;
 
-        $data['bookedOrders'] = $bookedQuery->where('status', 221)->paginate(10, ['*'], 'booked_page');
-        $data['cancelledOrders'] = $cancelledQuery->where('status', 229)->paginate(10, ['*'], 'cancelled_page');
-        $data['allOrders'] = $allOrdersQuery->paginate(10, ['*'], 'all_page');
+        $data['bookedOrders'] = $bookedQuery->where('status', 221)->paginate(100, ['*'], 'booked_page');
+        $data['cancelledOrders'] = $cancelledQuery->where('status', 229)->paginate(100, ['*'], 'cancelled_page');
+        $data['allOrders'] = $allOrdersQuery->paginate(100, ['*'], 'all_page');
+
+        // Before executing the query
+        // dd(vsprintf(str_replace('?', "'%s'", $baseQuery->toSql()), $baseQuery->getBindings()));
+
 
         return view('users.orders.list', $data);
     }
@@ -496,7 +507,7 @@ class OrderController extends Controller
             'awbNumbers' => $awbNumbers
         ]);
     }
-    
+
     // public function orderLabelData(CancelOrderRequest $request)
     // {
     //     $awbNumber = $request->awb_number;

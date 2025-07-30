@@ -20,10 +20,12 @@
     <div class="card mb-12">
         <div class="card-header border-bottom bg-base py-16 px-24 d-flex align-items-center flex-wrap gap-3 justify-content-between">
             <div class="d-flex align-items-center flex-wrap gap-3">
-                <span class="text-md fw-medium text-secondary-light mb-0">AWB Number:</span>
+                <span class="text-md fw-medium text-secondary-light mb-0">filters:</span>
                 <form class="navbar-search">
                     <input type="text" class="bg-base h-40-px w-auto" value="{{request()->search}}" name="search" placeholder="Search">
                     <iconify-icon icon="ion:search-outline" class="icon"></iconify-icon>
+                    <input type="date" name="from_date" id="from_date">
+                    <input type="date" name="to_date" id="to_date">
                     <button type="submit" class="btn btn-primary text-sm btn-sm px-12 py-12 radius-8">
                         Submit
                     </button>
