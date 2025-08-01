@@ -13,7 +13,9 @@ class WareHouseController extends Controller
 {
     public function show()
     {
-        return view('users.warehouse.create');
+        $user = Auth::user();
+        $data['warehouses'] = Warehouse::where(['status' => 1, 'user_id' => $user->id])->get();
+        return view('users.warehouse.create', $data );
     }
 
     public function create(CreateWarehouseRequest $request)

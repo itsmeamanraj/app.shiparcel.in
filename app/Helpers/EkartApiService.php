@@ -75,7 +75,7 @@ class EkartApiService
     }
 
 
-    public static function sendRequest($url, $data)
+    public static function sendRequest($url, $data, $method = 'POST')
     {
         try {
             $tokenResponse = Http::withHeaders([
@@ -91,15 +91,32 @@ class EkartApiService
 
             $auth_token = $tokenResponse->json();
 
-            $response = Http::withHeaders([
+            $client = Http::withHeaders([
                 'Authorization' => $auth_token,
                 'Content-Type' => 'application/json',
                 'HTTP_X_MERCHANT_CODE' => 'HRD',
-            ])->withOptions(['verify' => false])
-            ->post($url, $data);
+            ])->withOptions(['verify' => false]);
+
+            // Use dynamic HTTP method
+            $method = strtoupper($method);
+            switch ($method) {
+                case 'PUT':
+                    $response = $client->put($url, $data);
+                    break;
+                case 'GET':
+                    $response = $client->get($url, $data);
+                    break;
+                case 'DELETE':
+                    $response = $client->delete($url, $data);
+                    break;
+                default:
+                    $response = $client->post($url, $data);
+                    break;
+            }
 
             Log::info('ekart logistics API Response:', [
                 'url' => $url,
+                'method' => $method,
                 'response' => $response->json(),
             ]);
 

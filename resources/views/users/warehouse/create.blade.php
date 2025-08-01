@@ -98,10 +98,42 @@
                         </ul>
                     </div>
                     @endif
-
                 </div>
             </div>
         </div>
+        <div class="card card-body mt-5">
+            <div class="table-responsive">
+                <table class="table basic-border-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>Warehouse ID</th>
+                            <th>Name</th>
+                            <th>Address 1</th>
+                            <th>Mobile Number</th>
+                            <th>City</th>
+                            <th>State</th>
+                            <th>Pincode</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Example static row -->
+                        @foreach($warehouses as $warehouse)
+                            <tr>
+                                <td>#{{ $warehouse->id }}</td>
+                                <td>{{ $warehouse->sender_name }}</td>
+                                <td>{{ $warehouse->full_address }}</td>
+                                <td>{{ $warehouse->phone }}</td>
+                                <td>{{ $warehouse->city }}</td>
+                                <td>{{ $warehouse->state }}</td>
+                                <td>{{ $warehouse->pincode }}</td>
+                            </tr>
+                        @endforeach
+                        <!-- End static row -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
     </div>
 </div>
 <script>

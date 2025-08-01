@@ -407,19 +407,32 @@ class OrderController extends Controller
         $order = Order::where('awb_number', $awbNumber)->first();
         $user = Auth::user();
 
-        $url = 'https://app.parcelx.in/api/v1/order/cancel_order';
-        $apiData = ['awb' => $awbNumber];
+        // Define the API URL for cancellation
+        $url = 'https://api.ekartlogistics.com/v3/shipments/rto/create';
 
-        $response = ParcelxHelper::sendRequest($url, $apiData);
+        // Prepare the data for the request
+        $apiData = [
+            'request_details' => [
+                'tracking_id' => $awbNumber,
+                'reason' => 'Test Cancellation' // You can modify this reason as needed
+            ]
+        ];
+
+        // Send the request using a helper function
+        $response = EkartApiService::sendRequest($url, $apiData, 'PUT');
         $responseData = $response->json(); // Get response as an array
 
-        if ($response->successful() && isset($responseData['status']) && $responseData['status'] == true) {
+        // Debugging output (optional)
+        // dd($responseData);
+
+        if ($response->successful()) {
             $user->logActivity($user, 'Order canceled successfully', 'order_canceled');
 
+            // Update the order status in the database
             $order->update(['status' => '229']);
             return response()->json(['success' => true, 'message' => 'Order canceled successfully']);
         } else {
-            $user->logActivity($user(), 'Exception: Order cancel Failed', 'order_failed');
+            $user->logActivity($user, 'Exception: Order cancel Failed', 'order_failed');
 
             $errorMsg = $responseData['responsemsg'] ?? 'Failed to cancel order';
             return response()->json(['success' => false, 'message' => $errorMsg], 400);
@@ -510,77 +523,278 @@ class OrderController extends Controller
         ]);
     }
 
-    // public function orderLabelData(CancelOrderRequest $request)
-    // {
-    //     $awbNumber = $request->awb_number;
+    public function bulk_order(Request $request)
+    {
+        if ($request->hasFile('multiple_shipment')) {
+            $user = Auth::user();
+            $file = $request->file('multiple_shipment');
+            $filename = time() . '_' . $file->getClientOriginalName();
+            $filePath = public_path('uploads/' . $filename);
+            $file->move(public_path('uploads'), $filename);
 
-    //     // Raw query joining orders, users, and products via pivot (order_product)
-    //     $orderData = DB::table('shiparcel_orders')
-    //         ->join('users', 'shiparcel_orders.user_id', '=', 'users.id')
-    //         ->join('shiparcel_warehouses as pickup_warehouse', 'shiparcel_orders.pick_address_id', '=', 'pickup_warehouse.id')
-    //         ->join('shiparcel_warehouses as return_warehouse', 'shiparcel_orders.return_address_id', '=', 'return_warehouse.id')
-    //         ->select(
-    //             // Order table
-    //             'shiparcel_orders.id',
-    //             'shiparcel_orders.client_order_id',
-    //             'shiparcel_orders.consignee_emailid',
-    //             'shiparcel_orders.consignee_pincode',
-    //             'shiparcel_orders.consignee_mobile',
-    //             'shiparcel_orders.consignee_phone',
-    //             'shiparcel_orders.consignee_address1',
-    //             'shiparcel_orders.consignee_address2',
-    //             'shiparcel_orders.consignee_name',
-    //             'shiparcel_orders.invoice_number',
-    //             'shiparcel_orders.express_type',
-    //             'shiparcel_orders.pick_address_id',
-    //             'shiparcel_orders.return_address_id',
-    //             'shiparcel_orders.cod_amount',
-    //             'shiparcel_orders.tax_amount',
-    //             'shiparcel_orders.order_amount',
-    //             'shiparcel_orders.payment_mode',
-    //             'shiparcel_orders.courier_type',
-    //             'shiparcel_orders.awb_number',
-    //             'shiparcel_orders.order_number',
-    //             'shiparcel_orders.partner_display_name',
-    //             'shiparcel_orders.courier_code',
-    //             'shiparcel_orders.pickup_id',
-    //             'shiparcel_orders.courier_name',
-    //             'shiparcel_orders.user_id',
-    //             'shiparcel_orders.status',
-    //             'shiparcel_orders.created_at',
-    //             'shiparcel_orders.shipment_weight',
+            $rows = array_map('str_getcsv', file($filePath));
+            $header = array_shift($rows);
 
-    //             // Pickup address fields (aliased)
-    //             'pickup_warehouse.address_title as pickup_address_title',
-    //             'pickup_warehouse.sender_name as pickup_sender_name',
-    //             'pickup_warehouse.full_address as pickup_full_address',
-    //             'pickup_warehouse.phone as pickup_phone',
-    //             'pickup_warehouse.pincode as pickup_pincode',
-    //             'pickup_warehouse.state as pickup_state',
-    //             'pickup_warehouse.city as pickup_city',
+            $errors = [];
+            $successCount = 0;
 
-    //             // Return address fields (aliased)
-    //             'return_warehouse.address_title as return_address_title',
-    //             'return_warehouse.sender_name as return_sender_name',
-    //             'return_warehouse.full_address as return_full_address',
-    //             'return_warehouse.phone as return_phone',
-    //             'return_warehouse.pincode as return_pincode',
-    //             'return_warehouse.state as return_state',
-    //             'return_warehouse.city as return_city',
+            foreach ($rows as $rowIndex => $row) {
+                $data = array_combine($header, $row);
 
-    //             // User fields
-    //             'users.name as customer_name',
-    //             'users.email as customer_email'
-    //         )
-    //         ->where('shiparcel_orders.awb_number', $awbNumber)
-    //         ->first();
+                // Generate tracking id
+                $base = 1000000001;
+                $maxOffset = 999999;
+                $randomNumber = $base + rand(0, $maxOffset);
+                $paymentMode = $data['payment_mode'] ?? 'prepaid';
+                $modeCode = ($paymentMode === 'Cod') ? 'C' : 'P';
+                $Tracking_id = 'HRD' . $modeCode . $randomNumber;
 
-    //         // dd($orderData);
+                // Generate warehouse
+                $pickupWarehouse = Warehouse::where([
+                    'status' => 1,
+                    'user_id' => $user->id,
+                    'id' => $data['pickup_id']
+                ])->first();
 
-    //     if (!$orderData) {
-    //         abort(404, 'Order not found.');
-    //     }
+                $returnWarehouse = Warehouse::where([
+                    'status' => 1,
+                    'user_id' => $user->id,
+                    'id' => $data['return_id']
+                ])->first();
 
-    //     return view('users.orders.print_label', compact('orderData', 'awbNumber'));
-    // }
+                // Destination Address
+                $sourceAddress = [
+                    'first_name' => $pickupWarehouse->sender_name ?? '',
+                    'address_line1' => $pickupWarehouse->full_address ?? '',
+                    'address_line2' => $pickupWarehouse->address_title ?? '',
+                    'pincode' => $pickupWarehouse->pincode ?? '',
+                    'city' => $pickupWarehouse->city ?? '',
+                    'state' => $pickupWarehouse->state ?? '',
+                    'primary_contact_number' => $pickupWarehouse->phone ?? '',
+                    'email_id' => '',
+                ];
+
+                // Return Address
+                $returnAddress = [
+                    'first_name' => $returnWarehouse->sender_name ?? '',
+                    'address_line1' => $returnWarehouse->full_address ?? '',
+                    'address_line2' => $returnWarehouse->address_title ?? '',
+                    'pincode' => $returnWarehouse->pincode ?? '',
+                    'city' => $pickupWarehouse->city ?? '',
+                    'state' => $pickupWarehouse->state ?? '',
+                    'primary_contact_number' => $returnWarehouse->phone ?? '',
+                    'email_id' => '',
+                ];
+
+                $chargeableAmount = $user->chargeable_amount;
+
+                // Get the wallet record for the user
+                $wallet = Wallet::where('user_id', $user->id)->first();
+
+                // Check for no wallet, insufficient funds, or negative balance
+                if (!$wallet || $wallet->amount <= 0 || $wallet->amount < $chargeableAmount) {
+                    $errors[] = 'Insufficient Balance for order at row ' . ($rowIndex + 1) . '. Please recharge your wallet!';
+                    continue; // Skip to the next row
+                }
+
+                $productDataForDb = [];
+                $shipmentItems = [];
+                for ($i = 1; $i <= 3; $i++) {
+                    $nameKey = "product_name_$i";
+                    if (!empty($data[$nameKey])) {
+                        $shipmentItems[] = [
+                            'product_id' => $data["product_name_$i"] ?? '',
+                            'category' => $data["product_category_$i"] ?? 'Uncategorized',
+                            'product_title' => $data["product_name_$i"] ?? '',
+                            'quantity' => (int) ($data["product_quantity_$i"] ?? 1),
+                            'cost' => [
+                                'total_sale_value' => (float) ($data["product_unit_price_$i"] ?? 0),
+                                'total_tax_value' => 0,
+                                'tax_breakup' => [
+                                    'cgst' => 0,
+                                    'sgst' => 0,
+                                    'igst' => 0,
+                                ]
+                            ],
+                            'seller_details' => [
+                                'seller_reg_name' => 'shiparcel',
+                                'gstin_id' => null
+                            ],
+                            'hsn' => $data["product_name_$i"] ?? '',
+                            'ern' => null,
+                            'discount' => null,
+                            'item_attributes' => [
+                                ['name' => 'order_id', 'value' => $data['order_id']],
+                                ['name' => 'invoice_id', 'value' => $data['order_id']],
+                            ],
+                            'handling_attributes' => [
+                                ['name' => 'isFragile', 'value' => 'false'],
+                                ['name' => 'isDangerous', 'value' => 'false'],
+                            ]
+                        ];
+
+                        $productDataForDb[] = [
+                            'product_sku' => $data["product_name_$i"] ?? '',
+                            'product_name' => $data["product_name_$i"] ?? '',
+                            'product_value' => (float) ($data["product_unit_price_$i"] ?? 0),
+                            'product_category' => $data["product_category_$i"] ?? 'Uncategorized',
+                            'product_quantity' => (int) ($data["product_quantity_$i"] ?? 1),
+                        ];
+                    }
+                }
+
+                // Prepare full payload
+                $payload = [
+                    'client_name' => 'HRD',
+                    'goods_category' => 'ESSENTIAL',
+                    'services' => [
+                        [
+                            'service_code' => 'ECONOMY',
+                            'service_details' => [
+                                [
+                                    'service_leg' => 'FORWARD',
+                                    'service_data' => [
+                                        'service_types' => [
+                                            ['name' => 'regional_handover', 'value' => 'true'],
+                                            ['name' => 'delayed_dispatch', 'value' => 'false'],
+                                        ],
+                                        'vendor_name' => 'Ekart',
+                                        'amount_to_collect' => (string) ($data['total_amount'] ?? '0'),
+                                        'dispatch_date' => now()->format('Y-m-d H:i:s'),
+                                        'customer_promise_date' => null,
+                                        'delivery_type' => 'SMALL',
+                                        'source' => [
+                                            'address' => $sourceAddress
+                                        ],
+                                        'destination' => [
+                                            'address' => [
+                                                'first_name' => $data['destination_name'],
+                                                'primary_contact_number' => $data['destination_mobile'],
+                                                'address_line1' => $data['destination_address1'],
+                                                'address_line2' => $data['destination_address2'],
+                                                'pincode' => $data['destination_pincode'],
+                                                'city' => $data['destination_city'],
+                                                'state' => $data['destination_state']
+                                            ]
+                                        ],
+                                        'return_location' => [
+                                            'address' => $returnAddress
+                                        ],
+                                    ],
+                                    'shipment' => [
+                                        'client_reference_id' => $Tracking_id,
+                                        'tracking_id' => $Tracking_id,
+                                        'shipment_value' => (float) ($data['total_amount'] ?? 0),
+                                        'shipment_dimensions' => [
+                                            'length' => ['value' => (float) ($data['length'] ?? 0.5)],
+                                            'breadth' => ['value' => (float) ($data['width'] ?? 0.5)],
+                                            'height' => ['value' => (float) ($data['height'] ?? 0.5)],
+                                            'weight' => ['value' => (float) ($data['dead_weight'] ?? 0.5)],
+                                        ],
+                                        'return_label_desc_1' => null,
+                                        'return_label_desc_2' => null,
+                                        'shipment_items' => $shipmentItems
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ]
+                ];
+
+                try {
+                    if ($user->id !== 5) {
+                        $url = 'https://api.ekartlogistics.com/v2/shipments/create';
+                        $response = EkartApiService::sendRequest($url, $payload);
+                    }
+
+                    if ($response->successful() || $user->id == 5) {
+                        $responseData = $response->json();
+                        Log::info('API Response:', $responseData);
+                        $response = $responseData['response'][0] ?? [];
+
+                        if (!$response['status']) {
+                            $errors[] = 'Error for row ' . ($rowIndex + 1) . ': ' . $responseData['responsemsg'][0];
+                            continue; // Skip to the next row
+                        }
+
+                        // Save order to the database
+                        $dbData = [
+                            'user_id' => $user->id,
+                            'awb_number' => $Tracking_id,
+                            'order_number' => $data['order_id'],
+                            'client_order_id' => $data['order_id'],
+                            'payment_mode' => $data['payment_mode'],
+                            'order_amount' => (float) ($data['total_amount'] ?? 0),
+                            'shipment_length' => (float) ($data['length'] ?? 0.5),
+                            'shipment_width' => (float) ($data['width'] ?? 0.5),
+                            'shipment_height' => (float) ($data['height'] ?? 0.5),
+                            'shipment_weight' => (float) ($data['dead_weight'] ?? 0.5),
+                            'consignee_name' => $data['destination_name'],
+                            'consignee_mobile' => $data['destination_mobile'],
+                            'consignee_address1' => $data['destination_address1'],
+                            'consignee_address2' => $data['destination_address2'],
+                            'consignee_pincode' => $data['destination_pincode'],
+                            'pick_address_id' => $data['pickup_id'],
+                            'return_address_id' => $data['return_id'] ?? $data['pickup_id'],
+                            'courier_name' => 'Ekart',
+                            'partner_display_name' => 'Ekart',
+                            'ekart_tracking_id' => $response['tracking_id'] ?? null,
+                            'ekart_shipment_payment_link' => $response['shipment_payment_link'] ?? null,
+                            'ekart_api_status' => $response['status'] ?? null,
+                            'ekart_api_status_code' => $response['status_code'] ?? null,
+                            'ekart_is_parked' => $response['is_parked'] ?? null,
+                            'ekart_request_id' => $responseData['request_id'] ?? null,
+                            'status' => 221,
+                        ];
+
+                        $order = Order::create($dbData);
+
+                        foreach ($productDataForDb as $product) {
+                            $product['order_id'] = $order->id;
+                            Product::create($product);
+                        }
+
+                        // Update wallet balance
+                        $totalAmount = Wallet::where('user_id', $user->id)->first();
+                        if ($totalAmount) {
+                            $updatedAmount = $totalAmount->amount - $chargeableAmount;
+                            $totalAmount->update(['amount' => $updatedAmount]);
+                        } else {
+                            Wallet::create([
+                                'user_id' => $user->id,
+                                'amount' => -$chargeableAmount
+                            ]);
+                        }
+
+                        // Update wallet transactions
+                        $walletTransactions = WalletTransaction::where([
+                            'user_id' => Auth::id(),
+                            'status' => 101
+                        ])->get();
+
+                        foreach ($walletTransactions as $transaction) {
+                            $transaction->update(['status' => 102]);
+                        }
+
+                        $user->logActivity($user, 'Order created successfully', 'order_created');
+                        $successCount++;
+                    } else {
+                        $responseBody = $response->json();
+                        $errors[] = 'API Error for row ' . ($rowIndex + 1) . ': ' . ($responseBody['responsemsg'] ?? 'Unknown error occurred');
+                    }
+                } catch (Exception $e) {
+                    Log::error('Exception for row ' . ($rowIndex + 1) . ':', ['message' => $e->getMessage()]);
+                    $errors[] = 'An error occurred for row ' . ($rowIndex + 1) . ': ' . $e->getMessage();
+                }
+            }
+
+            // Prepare final response
+            if (!empty($errors)) {
+                return back()->with('error', implode('<br>', $errors));
+            }
+
+            return back()->with('success', "$successCount orders placed successfully.");
+        }
+        return back()->with('error', 'No CSV file uploaded.');
+    }
 }

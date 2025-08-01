@@ -25,6 +25,7 @@ Route::middleware(['auth'])->group(function () {
     /**Order Creation */
     Route::get('order/create', [OrderController::class, 'show'])->name('create-order');
     Route::post('create-order', [OrderController::class, 'create'])->name('create.order');
+    Route::post('bulk-order', [OrderController::class, 'bulk_order'])->name('bulk.order');
     Route::get('list-order', [OrderController::class, 'list'])->name('list.order');
     Route::get('/orders/{id}', [OrderController::class, 'view'])->name('orders.view');
     Route::post('cancel-order', [OrderController::class, 'cancelOrder'])->name('order.cancel');
