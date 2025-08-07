@@ -61,7 +61,7 @@
                     <ul class="nav border-gradient-tab nav-pills mb-0 border-top-0" id="pills-tab" role="tablist">
                         <li class="nav-item" role="presentation">
                             <button class="nav-link active" id="pills-all-tab" data-bs-toggle="pill" data-bs-target="#pills-all" type="button" role="tab" aria-controls="pills-all" aria-selected="true">
-                                Booked
+                                Booked 
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
