@@ -15,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+  use Illuminate\Support\Facades\Response;
 
 class OrderController extends Controller
 {
@@ -797,4 +798,72 @@ class OrderController extends Controller
         }
         return back()->with('error', 'No CSV file uploaded.');
     }
+  
+
+public function exportCsv(Request $request)
+{
+    $awbNumbers = explode(',', $request->input('selected_awbs'));
+    $orders = Order::with('productsData')->whereIn('awb_number', $awbNumbers)->get();
+
+    $headers = [
+        "Content-type" => "text/csv",
+        "Content-Disposition" => "attachment; filename=selected_orders.csv",
+        "Pragma" => "no-cache",
+        "Cache-Control" => "must-revalidate, post-check=0, pre-check=0",
+        "Expires" => "0"
+    ];
+
+    $columns = [
+        'Order ID',
+        'AWB Number',
+        'Order Amount',
+        'Payment Mode',
+        'Consignee Name',
+        'Consignee Email',
+        'Consignee Phone',
+        'Consignee Address',
+        'Pincode',
+        'Tax',
+        'Status',
+        'Created At',
+        'Product SKU',
+        'Product Name',
+        'Product Quantity',
+        'Courier_name'
+    ];
+
+    $callback = function () use ($orders, $columns) {
+        $file = fopen('php://output', 'w');
+        fputcsv($file, $columns);
+
+        foreach ($orders as $order) {
+            foreach ($order->productsData as $product) {
+                fputcsv($file, [
+                    $order->client_order_id,
+                    $order->awb_number,
+                    $order->order_amount,
+                    $order->payment_mode,
+                    $order->consignee_name,
+                    $order->consignee_emailid,
+                    $order->consignee_mobile ?: $order->consignee_phone,
+                    $order->consignee_address1,
+                    $order->consignee_pincode,
+                    $order->tax_amount,
+                    $order->status == 221 ? 'Booked' : '',
+                    $order->created_at->format('d M Y'),
+                    $product->product_sku ?? '',
+                    $product->product_name ?? '',
+                    $product->product_quantity ?? '',
+                    $order->courier_name
+                ]);
+            }
+        }
+
+        fclose($file);
+    };
+
+    return response()->stream($callback, 200, $headers);
+}
+
+
 }

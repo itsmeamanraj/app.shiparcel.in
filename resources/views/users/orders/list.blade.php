@@ -61,7 +61,7 @@
                     <ul class="nav border-gradient-tab nav-pills mb-0 border-top-0" id="pills-tab" role="tablist">
                         <li class="nav-item" role="presentation">
                             <button class="nav-link active" id="pills-all-tab" data-bs-toggle="pill" data-bs-target="#pills-all" type="button" role="tab" aria-controls="pills-all" aria-selected="true">
-                                Booked 
+                                Booked
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
@@ -79,9 +79,18 @@
                 <div class="card-body p-24">
                     <div class="tab-content" id="pills-tabContent">
                         <!-- booked -->
-                         <div class="mb-3" id="bulkActionBar" style="display: none;">
-                            <button class="btn btn-danger btn-sm" onclick="bulkDownloadLabels()">Download Selected Labels</button>
+                        <div class="mb-3" id="bulkActionBar" style="display: none;">
+                            <div style="display: flex; gap: 10px;">
+                                <button class="btn btn-danger btn-sm" onclick="bulkDownloadLabels()">Download Selected Labels</button>
+                                
+                                <form id="csvExportForm" method="POST" action="{{ route('orders.export.csv') }}">
+                                    @csrf
+                                    <input type="hidden" name="selected_awbs" id="selected_awbs_input">
+                                    <button type="submit" class="btn btn-danger btn-sm">Download CSV</button>
+                                </form>
+                            </div>
                         </div>
+
                         <div class="tab-pane fade show active" id="pills-all" role="tabpanel" aria-labelledby="pills-all-tab">
                             <div class="table-responsive">
                                 <table class="table basic-border-table mb-0">
@@ -332,5 +341,36 @@
     const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
 </script>
+<script>
+    function handleCheckboxChange() {
+        const selectedAwbs = Array.from(document.querySelectorAll('.rowCheckbox:checked'))
+            .map(cb => cb.value);
+
+        document.getElementById('selected_awbs_input').value = selectedAwbs.join(',');
+
+        const bulkActionBar = document.getElementById('bulkActionBar');
+        if (selectedAwbs.length > 0) {
+            bulkActionBar.style.display = 'block';
+        } else {
+            bulkActionBar.style.display = 'none';
+        }
+    }
+
+    function toggleSelectAll(source) {
+        const checkboxes = document.querySelectorAll('.rowCheckbox');
+        checkboxes.forEach(cb => cb.checked = source.checked);
+        handleCheckboxChange();
+    }
+    document.addEventListener("DOMContentLoaded", function () {
+        const form = document.getElementById('csvExportForm');
+        form.addEventListener('submit', function () {
+            const selectedAwbs = Array.from(document.querySelectorAll('.rowCheckbox:checked'))
+                .map(cb => cb.value);
+            document.getElementById('selected_awbs_input').value = selectedAwbs.join(',');
+        });
+    });
+</script>
+
+
 <script src="{{ asset('assets/js/order/app.js') }}"></script>
 @endsection

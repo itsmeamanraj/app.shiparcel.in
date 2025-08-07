@@ -30,6 +30,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/orders/{id}', [OrderController::class, 'view'])->name('orders.view');
     Route::post('cancel-order', [OrderController::class, 'cancelOrder'])->name('order.cancel');
     Route::post('order-label-data', [OrderController::class, 'orderLabelData'])->name('order.label-data');
+     Route::post('/orders/export-csv', [OrderController::class, 'exportCsv'])->name('orders.export.csv');
 
 
 
