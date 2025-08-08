@@ -42,6 +42,10 @@
                     <iconify-icon icon="mage:email" class="menu-icon"></iconify-icon>
                     <span>Wallet</span>
                 </a>
+                 <a href="{{route('pincode.check')}}">
+                    <iconify-icon icon="mage:email" class="menu-icon"></iconify-icon>
+                    <span>Pincode Serviceability</span>
+                </a>
             </li>
         </ul>
     </div>

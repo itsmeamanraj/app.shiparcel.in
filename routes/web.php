@@ -5,6 +5,7 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\UserAuthController;
 use App\Http\Controllers\WalletController;
+use App\Http\Controllers\PincodeController;
 use App\Http\Controllers\WareHouseController;
 use Illuminate\Support\Facades\Route;
 
@@ -30,8 +31,10 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/orders/{id}', [OrderController::class, 'view'])->name('orders.view');
     Route::post('cancel-order', [OrderController::class, 'cancelOrder'])->name('order.cancel');
     Route::post('order-label-data', [OrderController::class, 'orderLabelData'])->name('order.label-data');
-     Route::post('/orders/export-csv', [OrderController::class, 'exportCsv'])->name('orders.export.csv');
-
+    Route::post('/orders/export-csv', [OrderController::class, 'exportCsv'])->name('orders.export.csv');
+     /**Pincode */
+     Route::get('/check-pincode', [PincodeController::class, 'view'])->name('pincode.form');
+     Route::post('/check-pincode', [PincodeController::class, 'checkPincode'])->name('pincode.check');
 
 
     /**Wallet */
