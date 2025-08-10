@@ -8,6 +8,8 @@ use App\Http\Controllers\WalletController;
 use App\Http\Controllers\PincodeController;
 use App\Http\Controllers\WareHouseController;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 Route::get('/', function () {
     return view('auth.login');
@@ -35,8 +37,13 @@ Route::middleware(['auth'])->group(function () {
      /**Pincode */
      Route::get('/check-pincode', [PincodeController::class, 'view'])->name('pincode.form');
      Route::post('/check-pincode', [PincodeController::class, 'checkPincode'])->name('pincode.check');
+     Route::post('/check-pincode', function (Request $request) {
+        $exists = DB::table('pincode_couriers')
+            ->where('pincode', $request->pincode)
+            ->exists();
 
-
+        return response()->json(['exists' => $exists]);
+    })->name('pincode.check');
     /**Wallet */
     Route::get('wallet', [WalletController::class, 'show'])->name('wallet');
     Route::get('/wallet/fetchRates', [WalletController::class, 'fetchRates'])->name('wallet.fetchRates');

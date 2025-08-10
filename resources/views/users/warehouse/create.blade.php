@@ -179,9 +179,28 @@
         }
 
         // Submit the form if valid
-        if (isValid) {
-            document.getElementById('warehouseForm').submit();
-        }
-    });
+    if (isValid) {
+        fetch('{{ route("pincode.check") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({ pincode: pincode })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.exists) {
+                document.getElementById('pincode_error').textContent = 'This pincode is not serviceable.';
+            } else {
+                document.getElementById('warehouseForm').submit();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+        });
+    }
+});
+
 </script>
 @endsection

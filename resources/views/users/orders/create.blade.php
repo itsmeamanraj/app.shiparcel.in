@@ -42,6 +42,7 @@
                             <!-- booked -->
                             <div class="tab-pane fade show active" id="pills-all" role="tabpanel" aria-labelledby="pills-all-tab">
                                 <div class="form-wizard">
+                                    
                                     <form class="form" method="POST" id="form-builder" action="{{route('create.order')}}">
                                         @csrf
                                         <div class="form-wizard-header overflow-x-auto scroll-sm pb-8 my-32">
@@ -174,14 +175,15 @@
                                                     <div class="row">
                                                         <div class="col-md-3 col-lg-3 col-xl-3 mb-3">
                                                             <label class="form-label">Pincode<span class="text-danger">*</span></label>
-                                                            <div class="position-relative">
+                                                            <div class="position-relative" style="position: relative;">
                                                                 <input type="number" class="form-control wizard-required"
                                                                     id="consignee_pincode" name="consignee_pincode"
-                                                                    placeholder="Enter consingnee pincode" minlength="6" maxlength="6">
-                                                                <div class="wizard-form-error"></div>
+                                                                    placeholder="Enter consignee pincode" minlength="6" maxlength="6" required>
+                                                                <div class="wizard-form-error"
+                                                                    style="display:none; margin-top: 4px; font-size: 13px; color: red; position: static;">
+                                                                </div>
                                                             </div>
                                                         </div>
-
                                                         <div class="col-md-3 col-lg-3 col-xl-3 mb-3">
                                                             <label class="form-label">City<span class="text-danger">*</span></label>
                                                             <div class="position-relative">
@@ -308,6 +310,36 @@
                                         </fieldset>
 
                                         <fieldset class="wizard-fieldset">
+                                            <div class="form-group">
+                                            <label class="fw-bold mb-2">Select Courier</label>
+                                            @php
+                                                $selectedCourier = old('selected_courier', 1); // Default Ekart id = 1
+                                            @endphp
+
+                                            <div class="row">
+                                                @foreach($couriers as $courier)
+                                                    <div class="col-md-4 mb-2">
+                                                        <div class="form-check d-flex align-items-center">
+                                                            <input class="form-check-input me-2"
+                                                                type="radio"
+                                                                name="selected_courier"
+                                                                id="courier_{{ $courier->id }}"
+                                                                value="{{ $courier->id }}"
+                                                                {{ $courier->id == $selectedCourier ? 'checked' : '' }}>
+
+                                                            <label class="form-check-label d-flex align-items-center" for="courier_{{ $courier->id }}">
+                                                                <img src="{{ asset($courier->image_url) }}"
+                                                                    alt="{{ $courier->name }}"
+                                                                    style="height: 25px;"
+                                                                    class="me-2">
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                @endforeach
+                                            </div>
+
+
+
                                             <div class="form-group">
 
                                                 <div class="row form-group mb-0">
@@ -463,6 +495,40 @@
             ul.appendChild(li);
         }
     });
+    $('#consignee_pincode').on('blur', function () {
+        var pincode = $(this).val().trim();
+        var errorDiv = $(this).closest('.position-relative').find('.wizard-form-error');
+        var nextBtn = $('.form-wizard-next-btn');
+
+        if (pincode.length !== 6) {
+            errorDiv.text('Please enter a valid 6-digit pincode.').show();
+            nextBtn.prop('disabled', true);
+            return;
+        }
+
+        $.ajax({
+            url: '/check-pincode', // Apne route ka URL lagao
+            type: 'POST',
+            data: {
+                pincode: pincode,
+                _token: $('meta[name="csrf-token"]').attr('content')
+            },
+            success: function (response) {
+                if (response.exists) {
+                    errorDiv.hide();
+                    nextBtn.prop('disabled', false);
+                } else {
+                    errorDiv.text('This pincode is not serviceable.').show();
+                    nextBtn.prop('disabled', true);
+                }
+            },
+            error: function () {
+                errorDiv.text('Error checking pincode. Please try again.').show();
+                nextBtn.prop('disabled', true);
+            }
+        });
+    });
+
   // ================================================ Upload image & show it's name js end ================================================
 </script>
 @endsection

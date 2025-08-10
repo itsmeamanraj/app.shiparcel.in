@@ -35,6 +35,8 @@ class OrderController extends Controller
         }
 
         $data['warehouses'] = Warehouse::where(['status' => 1, 'user_id' => $user->id])->get();
+          $data['couriers'] = DB::table('courier_companies')->where('status', 1)->get();
+
         return view('users.orders.create', $data);
     }
 
