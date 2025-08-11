@@ -392,7 +392,7 @@
                                             <div class="col-md-6">
                                                 <div class="card h-100 p-0">
                                                     <div class="card-header border-bottom bg-base py-16 px-24">
-                                                        <a href="{{ asset('assets/bulk_order_sample.csv') }}" download> Download Sample</a>
+                                                        <a href="{{ asset('assets/bulk_order_sample.csv') }}" download>Download Sample</a>
                                                     </div>
                                                     <div class="card-body p-24">
                                                         <label for="file-upload-name" class="mb-16 border border-neutral-600 fw-medium text-secondary-light px-16 py-12 radius-12 d-inline-flex align-items-center gap-2 bg-hover-neutral-200">
