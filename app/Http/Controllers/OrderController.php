@@ -679,7 +679,7 @@ class OrderController extends Controller
                                             ]
                                         ],
                                         'return_location' => [
-                                            'address' => $returnAddress
+                                            'address' => $returnAddress ?? $sourceAddress
                                         ],
                                     ],
                                     'shipment' => [
