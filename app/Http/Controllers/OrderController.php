@@ -221,12 +221,12 @@ class OrderController extends Controller
         try {
 
             // dd($apiData);
-            if($user->id !== 5){
+            // if($user->id !== 5){
                 $url = 'https://api.ekartlogistics.com/v2/shipments/create';
                 $response = EkartApiService::sendRequest($url, $apiData);
-            }
+            // }
             // dd($response);
-            if ($response->successful() || $user->id == 5) {
+            if ($response->successful()) {
                 // dd($apiData);
                 $responseData = $response->json();
                 Log::info('API Response:', $responseData);
@@ -703,12 +703,12 @@ class OrderController extends Controller
                 ];
 
                 try {
-                    if ($user->id !== 5) {
+                    // if ($user->id !== 5) {
                         $url = 'https://api.ekartlogistics.com/v2/shipments/create';
                         $response = EkartApiService::sendRequest($url, $payload);
-                    }
+                    // }
 
-                    if ($response->successful() || $user->id == 5) {
+                    if ($response->successful()) {
                         $responseData = $response->json();
                         Log::info('API Response:', $responseData);
                         $response = $responseData['response'][0] ?? [];
@@ -798,7 +798,7 @@ class OrderController extends Controller
         }
         return back()->with('error', 'No CSV file uploaded.');
     }
-  
+
 
 public function exportCsv(Request $request)
 {
