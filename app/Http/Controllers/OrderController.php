@@ -114,9 +114,18 @@ class OrderController extends Controller
             'primary_contact_number' => $returnWarehouse->phone ?? '',
             'email_id' => '',
         ] : $sourceAddress;
+        $pincodeExists = DB::table('pincode_couriers')
+                   ->where('pincode', $request->pincode)
+                   ->where('courier_id', $request->courier_id) 
+                   ->exists();
+                   
+    if (!$pincodeExists) {
+        session()->flash('error', 'Pincode not serviceable.');
+        return redirect()->back()->withInput();
+    }
 
         //generate tracking id
-
+if(courtype==1)
         $base = 1000000001;
         $maxOffset = 999999; // You can adjust how many unique numbers you want
         $randomNumber = $base + rand(0, $maxOffset);
@@ -215,7 +224,7 @@ class OrderController extends Controller
                 ];
             }
         }
-
+    }elseif(courtype==2)
         Log::info('Fixed API Request Data:', $apiData);
 
         // dd($apiData);

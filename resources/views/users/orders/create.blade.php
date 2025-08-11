@@ -83,12 +83,14 @@
                                                             data-live-search="true" tabindex="null" required>
                                                             <option value="">Select</option>
                                                             @foreach ($warehouses as $warehouse)
-                                                            <option value="{{ $warehouse->id }}">
-                                                                {{ $warehouse->address_title }}
-                                                            </option>
-                                                            @endforeach
+                                                                    <option value="{{ $warehouse->id }}" {{ old('pickup_address') == $warehouse->id ? 'selected' : '' }}>
+                                                                        {{ $warehouse->address_title }}
+                                                                    </option>
+                                                                @endforeach
                                                         </select>
                                                         <div class="wizard-form-error"></div>
+                                                        <p>Old pickup_address value: {{ old('pickup_address') }}</p>
+
                                                     </div>
                                                 </div>
                                             </div>
@@ -136,7 +138,7 @@
                                                     <div class="col mb-3">
                                                         <label class="form-label">Consignee Name<span class="text-danger">*</span></label>
                                                         <div class="position-relative">
-                                                            <input type="text" class="form-control wizard-required" id="consignee_name"
+                                                            <input type="text" class="form-control wizard-required"  value="{{ old('consignee_name') }}"  id="consignee_name"
                                                                 name="consignee_name" placeholder="Enter consingnee Name" required>
                                                             <div class="wizard-form-error"></div>
                                                         </div>
@@ -146,7 +148,7 @@
                                                                 class="text-danger">*</span></label>
                                                         <div class="position-relative">
                                                             <input type="number" id="consignee_mobile" name="consignee_mobile"
-                                                                class="form-control wizard-required"
+                                                                class="form-control wizard-required" value="{{ old('consignee_mobile') }}"
                                                                 placeholder="Enter Consignee contact..." minlength="10" maxlength="10"
                                                                 required>
                                                             <div class="wizard-form-error"></div>
@@ -156,7 +158,7 @@
                                                         <label for="form-label">Address Line<span class="text-danger">*</span></label>
                                                         <div class="position-relative">
                                                             <input type="text" id="consignee_address1" name="consignee_address1"
-                                                                class="form-control wizard-required"
+                                                                class="form-control wizard-required" value="{{ old('consignee_address1') }}"
                                                                 placeholder="Enter Consignee address..." required>
                                                             <div class="wizard-form-error"></div>
                                                         </div>
@@ -165,7 +167,7 @@
                                                         <label for="form-label">Email<span class="text-danger">*</span></label>
                                                         <div class="position-relative">
                                                             <input type="text" id="consignee_emailid" name="consignee_emailid"
-                                                                class="form-control wizard-required"
+                                                                class="form-control wizard-required"  value="{{ old('consignee_emailid') }}"
                                                                 placeholder="Enter Consignee email...">
                                                             <div class="wizard-form-error"></div>
                                                         </div>
@@ -177,18 +179,16 @@
                                                             <label class="form-label">Pincode<span class="text-danger">*</span></label>
                                                             <div class="position-relative" style="position: relative;">
                                                                 <input type="number" class="form-control wizard-required"
-                                                                    id="consignee_pincode" name="consignee_pincode"
+                                                                    id="consignee_pincode" name="consignee_pincode" value="{{ old('consignee_pincode') }}"
                                                                     placeholder="Enter consignee pincode" minlength="6" maxlength="6" required>
-                                                                <div class="wizard-form-error"
-                                                                    style="display:none; margin-top: 4px; font-size: 13px; color: red; position: static;">
-                                                                </div>
+                                                               <div class="wizard-form-error"></div>
                                                             </div>
                                                         </div>
                                                         <div class="col-md-3 col-lg-3 col-xl-3 mb-3">
                                                             <label class="form-label">City<span class="text-danger">*</span></label>
                                                             <div class="position-relative">
                                                                 <input type="text" class="form-control wizard-required"
-                                                                    id="consignee_city" name="consignee_city"
+                                                                    id="consignee_city" name="consignee_city"  value="{{ old('consignee_city') }}"
                                                                     placeholder="Enter consingnee city" required>
                                                                 <div class="wizard-form-error"></div>
                                                             </div>
@@ -198,7 +198,7 @@
                                                             <label class="form-label">State<span class="text-danger">*</span></label>
                                                             <div class="position-relative">
                                                                 <input type="text" class="form-control wizard-required"
-                                                                    id="consignee_state" name="consignee_state"
+                                                                    id="consignee_state" name="consignee_state" value="{{ old('consignee_state') }}"
                                                                     placeholder="Enter consingnee state" required>
                                                                 <div class="wizard-form-error"></div>
                                                             </div>
@@ -208,7 +208,7 @@
                                                             <label class="form-label">Country<span class="text-danger">*</span></label>
                                                             <div class="position-relative">
                                                                 <input type="text" class="form-control wizard-required"
-                                                                    id="consignee_country" name="consignee_country"
+                                                                    id="consignee_country" name="consignee_country"  value="{{ old('consignee_country') }}"
                                                                     placeholder="Enter consingnee country" required>
                                                                 <div class="wizard-form-error"></div>
                                                             </div>
@@ -233,7 +233,7 @@
                                                             <label class="form-label">Order ID<span class="text-danger">*</span></label>
                                                             <div class="position-relative">
                                                                 <input type="text" class="form-control wizard-required" id="order_id"
-                                                                    name="order_id" placeholder="Enter order ID" required>
+                                                                    name="order_id"  value="{{ old('order_id') }}"  placeholder="Enter order ID" required>
                                                                 <div class="wizard-form-error"></div>
                                                             </div>
                                                         </div>
@@ -243,34 +243,35 @@
                                                                 class="form-control wizard-required"
                                                                 data-placeholder="Select Payment mode..." required>
                                                                 <option value="">-- Select Mode --</option>
-                                                                <option value="Prepaid">Prepaid</option>
-                                                                <option value="Cod">COD</option>
+                                                                <option  value="Prepaid" {{ old('payment_mode') == 'Prepaid' ? 'selected' : '' }}>Prepaid</option>
+                                                                <option value="Cod" {{ old('payment_mode') == 'Cod' ? 'selected' : '' }}>COD</option>
                                                             </select>
                                                         </div>
                                                     </div>
                                                 </div>
                                                 <h6>Product Details:</h6>
                                                 <div id="div_add_products" class="">
+                                                     @foreach(old('product_name', ['']) as $index => $name)
                                                     <div class="row div_add_products">
                                                         <div class="col-md-4 col-lg-4 col-xl-4 mb-3">
                                                             <label for="form-label">Product Name<span class="text-danger">*</span></label>
-                                                            <input type="text" id="product_name" name="product_name[]" class="form-control wizard-required" placeholder="Enter product name..." required>
+                                                            <input type="text" id="product_name" name="product_name[]" value="{{ old('product_name.'.$index) }}" class="form-control wizard-required" placeholder="Enter product name..." required>
                                                         </div>
                                                         <div class="col-md-2 col-lg-2 col-xl-2 mb-3">
                                                             <label for="form-label">Quantity<span class="text-danger">*</span></label>
-                                                            <input type="text" id="product_quantity" name="product_quantity[]" class="form-control wizard-required" placeholder="Enter product Quantity..." required>
+                                                            <input type="text" id="product_quantity" name="product_quantity[]" value="{{ old('product_name.'.$index) }}" class="form-control wizard-required" placeholder="Enter product Quantity..." required>
                                                         </div>
                                                         <div class="col-md-2 col-lg-2 col-xl-2 mb-3">
                                                             <label for="form-label">Product Value<span class="text-danger">*</span></label>
-                                                            <input type="text" id="product_value" name="product_value[]" class="form-control wizard-required" placeholder="Enter product value..." required>
+                                                            <input type="text" id="product_value" name="product_value[]" value="{{ old('product_name.'.$index) }}" class="form-control wizard-required" placeholder="Enter product value..." required>
                                                         </div>
                                                         <div class="col-md-3 col-lg-3 col-xl-3 mb-3">
                                                             <label for="form-label">Category<span class="text-danger">*</span></label>
-                                                            <input type="text" id="product_category" name="product_category[]" class="form-control wizard-required" placeholder="Enter product category..." required>
+                                                            <input type="text" id="product_category" name="product_category[]" value="{{ old('product_name.'.$index) }}" class="form-control wizard-required" placeholder="Enter product category..." required>
                                                         </div>
                                                         <div class="col-md-3 col-lg-3 col-xl-3 mb-3">
                                                             <label for="form-label">SKU<span class="text-danger">*</span></label>
-                                                            <input type="text" id="product_sku" name="product_sku[]" class="form-control wizard-required" placeholder="Enter SKU..." required>
+                                                            <input type="text" id="product_sku" name="product_sku[]" value="{{ old('product_name.'.$index) }}" class="form-control wizard-required" placeholder="Enter SKU..." required>
                                                         </div>
                                                         <div class="col-md-1 col-lg-1 col-xl-1 mb-3">
                                                             <label for="form-label" style="padding-top:30px;">&#160;</label>
@@ -280,23 +281,24 @@
                                                                 </svg></button>
                                                         </div>
                                                     </div>
+                                                    @endforeach
                                                 </div>
                                                 <h6>Order Details:</h6>
                                                 <div class="form-group mb-0">
                                                     <div class="row">
                                                         <div class="col-md-3 col-lg-3 col-xl-3 mb-3">
                                                             <label for="form-label">Order Amount<span class="text-danger">*</span></label>
-                                                            <input type="text" id="order_amount" name="order_amount" class="form-control wizard-required" placeholder="Enter amount..." required>
+                                                            <input type="text" id="order_amount" name="order_amount"  value="{{ old('order_amount') }}"  class="form-control wizard-required" placeholder="Enter amount..." required>
                                                         </div>
 
                                                         <div class="col-md-3 col-lg-3 col-xl-3 mb-3">
                                                             <label for="form-label">GST Amount<span class="text-danger">*</span></label>
-                                                            <input type="text" id="tax_amount" name="tax_amount" class="form-control wizard-required" placeholder="Enter gst..." required>
+                                                            <input type="text" id="tax_amount" name="tax_amount"  value="{{ old('order_amount') }}"  class="form-control wizard-required" placeholder="Enter gst..." required>
                                                         </div>
 
                                                         <div class="col-md-3 col-lg-3 col-xl-3 mb-3">
                                                             <label for="form-label">Total Amount<span class="text-danger">*</span></label>
-                                                            <input type="text" id="total_amount" name="total_amount" class="form-control wizard-required" placeholder="Enter total amount..." required>
+                                                            <input type="text" id="total_amount" name="total_amount"  value="{{ old('order_amount') }}" class="form-control wizard-required" placeholder="Enter total amount..." required>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -348,7 +350,7 @@
                                                                 class="text-danger">*</span></label>
                                                         <div class="input-group">
                                                             <input type="text" id="shipment_weight" value=""
-                                                                name="shipment_weight[]" class="form-control"
+                                                                name="shipment_weight[]"   value="{{ old('shipment_weight.0') }}"  class="form-control"
                                                                 placeholder="Enter weight..." aria-describedby="basic-addon2">
                                                             <div class="input-group-append">
                                                                 <span class="input-group-text alert-info" style="padding: 0.6rem .8rem;">KG</span>
@@ -363,7 +365,7 @@
                                                                 <div class="position-relative col-md-4 col-lg-4 col-xl-4 mb-3">
                                                                     <div class="input-group">
                                                                         <input type="text" id="shipment_length" value=""
-                                                                            name="shipment_length[]" class="form-control"
+                                                                            name="shipment_length[]"  value="{{ old('shipment_length.0') }}" class="form-control"
                                                                             placeholder="Enter weight..." aria-describedby="basic-addon2"
                                                                             placeholder="Enter length..." onblur="calcvolwt();">
                                                                         <div class="input-group-append">
@@ -377,7 +379,7 @@
                                                                 <div class="position-relative col-md-4 col-lg-4 col-xl-4 mb-3">
                                                                     <div class="input-group">
                                                                         <input type="text" id="shipment_width" value=""
-                                                                            name="shipment_width[]" class="form-control"
+                                                                            name="shipment_width[]" value="{{ old('shipment_width.0') }}"  class="form-control"
                                                                             placeholder="Enter width..." onblur="calcvolwt();">
                                                                         <div class="input-group-append">
 
@@ -389,7 +391,7 @@
                                                                 <div class="position-relative col-md-4 col-lg-4 col-xl-4 mb-3">
                                                                     <div class="input-group">
                                                                         <input type="text" id="shipment_height" value=""
-                                                                            name="shipment_height[]"
+                                                                            name="shipment_height[]" value="{{ old('shipment_height.0') }}"
                                                                             class="form-control ui-wizard-content"
                                                                             placeholder="Enter height..." onblur="calcvolwt();">
                                                                         <div class="input-group-append">
@@ -495,39 +497,7 @@
             ul.appendChild(li);
         }
     });
-    $('#consignee_pincode').on('blur', function () {
-        var pincode = $(this).val().trim();
-        var errorDiv = $(this).closest('.position-relative').find('.wizard-form-error');
-        var nextBtn = $('.form-wizard-next-btn');
 
-        if (pincode.length !== 6) {
-            errorDiv.text('Please enter a valid 6-digit pincode.').show();
-            nextBtn.prop('disabled', true);
-            return;
-        }
-
-        $.ajax({
-            url: '/check-pincode', // Apne route ka URL lagao
-            type: 'POST',
-            data: {
-                pincode: pincode,
-                _token: $('meta[name="csrf-token"]').attr('content')
-            },
-            success: function (response) {
-                if (response.exists) {
-                    errorDiv.hide();
-                    nextBtn.prop('disabled', false);
-                } else {
-                    errorDiv.text('This pincode is not serviceable.').show();
-                    nextBtn.prop('disabled', true);
-                }
-            },
-            error: function () {
-                errorDiv.text('Error checking pincode. Please try again.').show();
-                nextBtn.prop('disabled', true);
-            }
-        });
-    });
 
   // ================================================ Upload image & show it's name js end ================================================
 </script>
