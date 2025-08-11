@@ -294,7 +294,7 @@
 
                                                         <div class="col-md-3 col-lg-3 col-xl-3 mb-3">
                                                             <label for="form-label">Total Amount<span class="text-danger">*</span></label>
-                                                            <input type="text" id="total_amount" name="total_amount" class="form-control wizard-required" placeholder="Enter total amount..." required>
+                                                            <input type="text" id="total_amount" name="total_amount" class="form-control wizard-required" placeholder="Enter total amount..." required >
                                                         </div>
                                                     </div>
                                                 </div>
