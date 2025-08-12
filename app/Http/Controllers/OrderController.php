@@ -17,7 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-  use Illuminate\Support\Facades\Response;
+use Illuminate\Support\Facades\Response;
 
 class OrderController extends Controller
 {
@@ -25,7 +25,7 @@ class OrderController extends Controller
      * Show Order Form
      */
     public function show()
-    {
+    { 
         $user = Auth::user();
         $chargeableAmount = $user->chargeable_amount;
 
@@ -37,6 +37,8 @@ class OrderController extends Controller
         }
 
         $data['warehouses'] = Warehouse::where(['status' => 1, 'user_id' => $user->id])->get();
+        $data['couriers'] = DB::table('courier_companies')->where('status', 1)->get();
+
         return view('users.orders.create', $data);
     }
 
@@ -44,7 +46,7 @@ class OrderController extends Controller
      * Save Order Data
      */
     public function create(Request $request)
-    {
+    {   //dd($_POST);
         $user = Auth::user();
         $chargeableAmount = $user->chargeable_amount;
 
@@ -114,11 +116,11 @@ class OrderController extends Controller
             'primary_contact_number' => $returnWarehouse->phone ?? '',
             'email_id' => '',
         ] : $sourceAddress;
+        $courier_id = (int) $request->input('selected_courier');
 
         //generate tracking id
         if ($courier_id == 1) { // Ekart
             try {
-                // Ekart payload और API call
                 $base = 1000000001;
                 $maxOffset = 999999;
                 $randomNumber = $base + rand(0, $maxOffset);
@@ -337,95 +339,207 @@ class OrderController extends Controller
                 return redirect()->back();
             }
 
-        }  elseif ($courier_id == 2) {
-            try {
-                // ===== XpressBees Payload =====
-                $xpressPayload = [
-                    'order_id'      => $request->order_id,
-                    'payment_mode'  => $request->payment_mode ?? 'prepaid',
-                    'consignee'     => [
-                        'name'     => $request->consignee_name,
-                        'address'  => $request->consignee_address1,
-                        'pincode'  => $request->consignee_pincode,
-                        'phone'    => $request->consignee_mobile,
-                        'email'    => $request->consignee_emailid ?? '',
-                    ],
-                    'pickup' => [
-                        'address'  => $sourceAddress,
-                        'pincode'  => $pickupPincode,
-                        'name'     => $pickupName,
-                        'phone'    => $pickupPhone
-                    ],
-                    'shipment_details' => [
-                        'weight'   => (float) ($request->shipment_weight[0] ?? 0.5),
-                        'length'   => (float) ($request->shipment_length[0] ?? 0.5),
-                        'breadth'  => (float) ($request->shipment_width[0] ?? 0.5),
-                        'height'   => (float) ($request->shipment_height[0] ?? 0.5),
-                        'invoice_no' => $request->invoice_no ?? 'INV' . time(),
-                        'cod_amount' => ($request->payment_mode === 'Cod') ? (float) ($request->total_amount ?? 0) : 0,
-                        'declared_value' => (float) ($request->total_amount ?? 0)
-                    ],
-                    'products' => []
+        }if ($courier_id == 2) { // XpressBees
+    try {
+        $xpressPayload = [
+            "BusinessAccountName" => "ANKUR PARSHAR",
+            "OrderNo" => $request->order_id,
+            "SubOrderNo" => $request->order_id . '-1',
+            "OrderType" => ($request->payment_mode == 'Cod') ? 'COD' : 'PrePaid',
+            "CollectibleAmount" => ($request->payment_mode == 'Cod') ? (string)$request->total_amount : "0",
+            "DeclaredValue" => (string)($request->total_amount ?? "0"),
+            "PickupType" => "Vendor",
+            "Quantity" => count($request->product_name) > 0 ? count($request->product_name) : 1,
+            "ServiceType" => "SD",
+
+            "DropDetails" => [
+                "Addresses" => [[
+                    "Address" => $request->consignee_address1,
+                    "City" => $request->consignee_city ?? '',
+                    "EmailID" => $request->consignee_emailid ?? '',
+                    "Name" => $request->consignee_name,
+                    "PinCode" => $request->consignee_pincode,
+                    "State" => $request->consignee_state ?? '',
+                    "Type" => "Primary",
+                ]],
+                "ContactDetails" => [[
+                    "PhoneNo" => $request->consignee_mobile,
+                    "Type" => "Primary",
+                ]],
+            ],
+
+            "PickupDetails" => [
+                "Addresses" => [[
+                    "Address" => $pickupWarehouse->full_address ?? '',
+                    "City" => $request->source_city ?? $destinationAddress['city'] ?? '',
+                    "EmailID" => '',
+                    "Name" => $pickupWarehouse->sender_name ?? '',
+                    "PinCode" => $pickupWarehouse->pincode ?? '',
+                    "State" => $request->source_state ?? $destinationAddress['state'] ?? '',
+                    "Type" => "Primary",
+                ]],
+                "ContactDetails" => [[
+                    "PhoneNo" => $pickupWarehouse->phone ?? '',
+                    "Type" => "Primary",
+                ]],
+                "PickupVendorCode" => env('XPRESSBEES_VENDOR_CODE', 'YOUR_VENDOR_CODE')
+            ],
+
+            "RTODetails" => [
+                "Addresses" => [[
+                    "Address" => ($request->is_return_address === 'on' ? $returnWarehouse->full_address : $pickupWarehouse->full_address) ?? '',
+                    "City" => ($request->is_return_address === 'on' ? $request->source_city : $destinationAddress['city']) ?? '',
+                    "EmailID" => '',
+                    "Name" => ($request->is_return_address === 'on' ? $returnWarehouse->sender_name : $pickupWarehouse->sender_name) ?? '',
+                    "PinCode" => ($request->is_return_address === 'on' ? $returnWarehouse->pincode : $pickupWarehouse->pincode) ?? '',
+                    "State" => ($request->is_return_address === 'on' ? $request->source_state : $destinationAddress['state']) ?? '',
+                    "Type" => "Primary",
+                ]],
+                "ContactDetails" => [[
+                    "PhoneNo" => ($request->is_return_address === 'on' ? $returnWarehouse->phone : $pickupWarehouse->phone) ?? '',
+                    "Type" => "Primary",
+                ]],
+            ],
+
+            "ManifestID" => $request->order_id,
+            "IsEssential" => "false",
+            "IsSecondaryPacking" => "false",
+
+            "PackageDetails" => [
+                "Dimensions" => [
+                    "Height" => (string)($request->shipment_height[0] ?? "1"),
+                    "Length" => (string)($request->shipment_length[0] ?? "1"),
+                    "Width" => (string)($request->shipment_width[0] ?? "1"),
+                ],
+                "Weight" => [
+                    "BillableWeight" => (string)($request->shipment_weight[0] ?? "1"),
+                    "PhyWeight" => (string)($request->shipment_weight[0] ?? "1"),
+                    "VolWeight" => "0"
+                ]
+            ],
+
+            "GSTMultiSellerInfo" => []
+        ];
+
+        if ($request->has('gst_invoice_number')) {
+            $xpressPayload['GSTMultiSellerInfo'][] = [
+                "BuyerGSTRegNumber" => $request->buyer_gstin ?? '',
+                "InvoiceDate" => now()->format('d-m-Y'),
+                "InvoiceNumber" => $request->gst_invoice_number ?? '',
+                "IsSellerRegUnderGST" => "Yes",
+                "SellerAddress" => $pickupWarehouse->address ?? '',
+                "SellerGSTRegNumber" => $pickupWarehouse->gstin ?? '',
+                "SellerName" => $pickupWarehouse->contact_name ?? '',
+                "SellerPincode" => $pickupWarehouse->pincode ?? '',
+                "SupplySellerStatePlace" => $pickupWarehouse->state ?? '',
+                "HSNDetails" => $request->gst_hsn_details ?? []
+            ];
+        }
+
+        Log::info('XpressBees API Request:', $xpressPayload);
+
+        $response = XpressbeesApiService::sendForwardManifest($xpressPayload);
+
+        Log::info('XpressBees API Response:', $response);
+
+        if (isset($response['error']) && $response['error']) {
+            Log::error('XpressBees API Error:', $response);
+            session()->flash('error', $response['message'] ?? 'XpressBees API failed.');
+            return redirect()->back();
+        }
+
+        if (!isset($response['ReturnCode']) || $response['ReturnCode'] != 100) {
+            session()->flash('error', 'XpressBees API Error: ' . ($response['ReturnMessage'] ?? 'Unknown error'));
+            return redirect()->back();
+        }
+      $dbData = $xpressPayload;
+
+        $dbData['shipment_width'] = $request->shipment_width[0] ?? '0.5';
+        $dbData['shipment_height'] = $request->shipment_height[0] ?? '0.5';
+        $dbData['shipment_length'] = $request->shipment_length[0] ?? '0.5';
+        $dbData['shipment_weight'] = $request->shipment_weight[0] ?? '0.5';
+        $dbData['order_amount'] = (float) ($request->total_amount ?? 0);
+        $dbData['payment_mode'] = $request->payment_mode ?? 'prepaid';
+
+        $dbData['invoice_number'] = $request->invoice_number ?? '';
+
+        $dbData['client_order_id'] = $request->order_id ?? null;
+        $dbData['consignee_emailid'] = $request->consignee_emailid ?? '';
+        $dbData['consignee_pincode'] = $request->consignee_pincode ?? '';
+        $dbData['consignee_mobile'] = $request->consignee_mobile ?? '';
+        $dbData['consignee_phone'] = $request->consignee_phone ?? '';
+        $dbData['consignee_address1'] = $request->consignee_address1 ?? '';
+        $dbData['consignee_address2'] = $request->consignee_address2 ?? '';
+        $dbData['consignee_name'] = $request->consignee_name ?? '';
+
+        $dbData['xpressbees_awb_no'] = $response['AWBNo'] ?? null;
+        $dbData['xpressbees_api_status_code'] = $response['ReturnCode'] ?? null;
+        $dbData['xpressbees_api_status'] = $response['ReturnMessage'] ?? null;
+        $dbData['xpressbees_token_number'] = $response['TokenNumber'] ?? null;
+        $dbData['xpressbees_is_parked'] = $response['IsParked'] ?? null;
+        $dbData['xpressbees_payment_link'] = $response['ShipmentPaymentLink'] ?? null;
+
+        $dbData['user_id'] = $user->id;
+        $dbData['status'] = 221;
+        $dbData['order_number'] = $request->order_id ?? null;
+        $dbData['partner_display_name'] = 'XpressBees';
+        $dbData['pick_address_id'] = $request->pickup_address ?? null;
+        $dbData['return_address_id'] = $request->return_address ?? $request->pickup_address ?? null;
+        $dbData['courier_name'] = 'XpressBees';
+        $productDataForDb = [];
+
+        if ($request->has('product_name') && is_array($request->product_name)) {
+            foreach ($request->product_name as $index => $product_name) {
+                $productDataForDb[] = [
+                    'product_name' => $product_name,
+                    'product_sku' => $request->product_sku[$index] ?? '',
+                    'product_value' => (float)($request->product_value[$index] ?? 0),
+                    'product_hsnsac' => $request->product_sku[$index] ?? '',
+                    'product_taxper' => (float)($request->product_taxper[$index] ?? 0),
+                    'product_category' => $request->product_category[$index] ?? 'Uncategorized',
+                    'product_quantity' => (int)($request->product_quantity[$index] ?? 1),
+                    'product_description' => '',
                 ];
-
-                // Add products
-                if ($request->has('product_name') && is_array($request->product_name)) {
-                    foreach ($request->product_name as $index => $product_name) {
-                        $xpressPayload['products'][] = [
-                            'name'  => $product_name,
-                            'sku'   => $request->product_sku[$index] ?? '',
-                            'hsn'   => $request->product_sku[$index] ?? '',
-                            'quantity' => (int) ($request->product_quantity[$index] ?? 1),
-                            'price' => (float) ($request->product_value[$index] ?? 0)
-                        ];
-                    }
-                }
-
-                // ===== API Call =====
-                $url = 'https://api.xpressbees.com/shipments/create';
-                $response = XpressbeesApiService::sendRequest($url, $xpressPayload);
-
-                if ($response->successful()) {
-                    $resData = $response->json();
-                    Log::info('XpressBees API Response:', $resData);
-
-                    // ===== Save to DB =====
-                    $orderData = [
-                        'awb_number'    => $resData['awb_number'] ?? null,
-                        'courier_name'  => 'XpressBees',
-                        'order_number'  => $request->order_id,
-                        'status'        => 221,
-                        'user_id'       => $user->id
-                    ];
-                    $order = Order::create($orderData);
-
-                    foreach ($xpressPayload['products'] as $prod) {
-                        $prod['order_id'] = $order->id;
-                        Product::create($prod);
-                    }
-
-                    session()->flash('success', 'Order placed successfully! AWB: ' . ($resData['awb_number'] ?? ''));
-                    return redirect()->back();
-                } else {
-                    $err = $response->json();
-                    Log::error('XpressBees API Error:', $err);
-                    session()->flash('error', $err['message'] ?? 'XpressBees API failed.');
-                    return redirect()->back();
-                }
-            } catch (Exception $e) {
-                Log::error('XpressBees Exception:', ['message' => $e->getMessage()]);
-                session()->flash('error', 'XpressBees Error: ' . $e->getMessage());
-                return redirect()->back();
-            } 
-        }elseif ($courier_id == 3) { // Other Couriers
-            try {
-                // Other courier payload + API call + response handling
-            } catch (Exception $e) {
-                Log::error('Other Courier Exception:', ['message' => $e->getMessage()]);
-                session()->flash('error', 'An error occurred: ' . $e->getMessage());
-                return redirect()->back();
             }
         }
+       // dd($dbData);
+        $order = Order::create($dbData);
+
+        foreach ($productDataForDb as $product) {
+            $product['order_id'] = $order->id;
+            Product::create($product);
+        }
+
+        $totalAmount = Wallet::where('user_id', $user->id)->first();
+
+        if ($totalAmount) {
+            $updatedAmount = $totalAmount->amount - $chargeableAmount;
+            $totalAmount->update(['amount' => $updatedAmount]);
+        } else {
+            Wallet::create([
+                'user_id' => $user->id,
+                'amount' => -$chargeableAmount,
+            ]);
+        }
+
+        $walletTransactions = WalletTransaction::where([
+            'user_id' => Auth::id(),
+            'status' => 101,
+        ])->get();
+
+        foreach ($walletTransactions as $transaction) {
+            $transaction->update(['status' => 102]);
+        }
+
+        session()->flash('success', 'Order placed successfully! AWB: ' . ($dbData['xpressbees_awb_no'] ?? ''));
+        return redirect()->back();
+
+    } catch (Exception $e) {
+        Log::error('XpressBees Exception:', ['message' => $e->getMessage()]);
+        session()->flash('error', 'XpressBees Error: ' . $e->getMessage());
+        return redirect()->back();
+    }
+}
 
     }
 

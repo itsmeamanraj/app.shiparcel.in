@@ -12,107 +12,102 @@ class XpressbeesApiService
     protected static $tokenCacheKey = 'xpressbees_api_token';
 
     /**
-     * Get valid bearer token from cache or fetch a new one
+     * Get bearer token from cache or generate a new one
+     *
+     * @return string
+     * @throws Exception
      */
     public static function getBearerToken()
     {
-        // If token exists in cache, return it
         if (Cache::has(self::$tokenCacheKey)) {
             return Cache::get(self::$tokenCacheKey);
         }
 
-        // Request new token from XpressBees
-        $response = Http::withHeaders([
-            'Content-Type' => 'application/json',
-            'Authorization' => 'Basic YOUR_XPRESSBEES_BASIC_AUTH',
-        ])->post('https://api.xpressbees.com/api/auth/token'); // Update URL if needed
-
-        if (!$response->successful()) {
-            throw new Exception('Failed to fetch token from XpressBees. Status: ' . $response->status());
-        }
-
-        $data = $response->json();
-        $token = $data['data']['token'] ?? null;
-
-        if (!$token) {
-            throw new Exception('Token not found in XpressBees response.');
-        }
-
-        // Cache token with expiry buffer
-        $expiresInSeconds = $data['data']['expiry'] ?? 2400;
-        $cacheDurationInMinutes = floor($expiresInSeconds / 60) - 1;
-        Cache::put(self::$tokenCacheKey, $token, now()->addMinutes($cacheDurationInMinutes));
-
-        return $token;
-    }
-
-    /**
-     * Call a protected XpressBees API
-     */
-    public static function callXpressbeesApi(string $endpoint, string $method = 'post', array $body = [])
-    {
-        $token = self::getBearerToken();
-
-        $headers = [
-            'Authorization' => 'Bearer ' . $token,
-            'Content-Type'  => 'application/json',
-        ];
-
-        $url = "https://api.xpressbees.com/api/{$endpoint}";
-
-        $response = Http::withHeaders($headers)->{$method}($url, $body);
-
-        if (!$response->successful()) {
-            throw new Exception("XpressBees API call failed: " . $response->body());
-        }
-
-        return $response->json();
-    }
-
-    /**
-     * Generic sendRequest method like EkartApiService
-     */
-    public static function sendRequest($url, $data, $method = 'POST')
-    {
         try {
-            // Get fresh token
-            $token = self::getBearerToken();
+            $url = 'https://userauthapis.xbees.in/api/auth/generateToken';
 
-            $client = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $token,
-                'Content-Type'  => 'application/json',
-            ])->withOptions(['verify' => false]);
+            $headers = [
+                'Content-Type' => 'application/json',
+                'XBKey'        => 'Ehdua38479Bgasy',  // Your XBKey
+                'AuthType'     => 'New',
+            ];
 
-            $method = strtoupper($method);
-            switch ($method) {
-                case 'PUT':
-                    $response = $client->put($url, $data);
-                    break;
-                case 'GET':
-                    $response = $client->get($url, $data);
-                    break;
-                case 'DELETE':
-                    $response = $client->delete($url, $data);
-                    break;
-                default:
-                    $response = $client->post($url, $data);
-                    break;
+            $payload = [
+                'username'  => 'admin@hg500g.com',  // Your username
+                'password'  => 'Xpress@1234567',    // Your password
+                'secretkey' => 'a7d2fc1cbc0c5a5c4c009c51032ca6874e26acd460d22b49e920b11b7d67784c', // Your secret key
+            ];
+
+            $response = Http::withHeaders($headers)->post($url, $payload);
+
+            Log::info('XpressBees Token API Response:', ['body' => $response->body()]);
+
+            if (!$response->successful()) {
+                throw new Exception('Failed to fetch token. Status: ' . $response->status() . ', Body: ' . $response->body());
             }
 
-            Log::info('XpressBees API Response:', [
-                'url'      => $url,
-                'method'   => $method,
-                'response' => $response->json(),
-            ]);
+            $data = $response->json();
 
-            return $response;
-        } catch (\Exception $e) {
-            Log::error('XpressBees API Exception:', ['message' => $e->getMessage()]);
+           $token = $data['token'] ?? null;
 
-            return new \Illuminate\Http\Client\Response(
-                new \GuzzleHttp\Psr7\Response(500, [], json_encode(['error' => $e->getMessage()])),
-                new \Illuminate\Http\Request('POST', $url)
-            );
+
+            if (!$token) {
+                throw new Exception('Token not found in response: ' . json_encode($data));
+            }
+
+            // Cache for 39 minutes (token expires in 40 minutes)
+            Cache::put(self::$tokenCacheKey, $token, now()->addMinutes(39));
+
+            return $token;
+
+        } catch (Exception $e) {
+            Log::error('XpressBees Token Generation Error: ' . $e->getMessage());
+            throw $e;
         }
     }
+
+    /**
+     * Send Forward Manifest API request to XpressBees
+     *
+     * @param array $payload
+     * @return array
+     */
+    public static function sendForwardManifest(array $payload)
+    {
+        try {
+            $token = self::getBearerToken();
+
+            if (!$token) {
+                throw new Exception('Token not found.');
+            }
+
+            $headers = [
+                'token' => $token,
+                'versionnumber' => 'v1',
+                'XBKey' => 'Ehdua38479Bgasy',
+                'Content-Type' => 'application/json',
+            ];
+
+            $url = 'https://apishipmentmanifestation.xbees.in/shipmentmanifestation/forward';
+
+            $response = Http::withHeaders($headers)
+                            ->timeout(30)
+                            ->post($url, $payload);
+
+            if (!$response->successful()) {
+                throw new Exception('Forward Manifest API failed. Status: ' . $response->status() . ', Body: ' . $response->body());
+            }
+
+            return $response->json();
+
+        } catch (Exception $e) {
+            Log::error('XpressBees Forward Manifest Error: ' . $e->getMessage());
+            return [
+                'error' => true,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+
 }
