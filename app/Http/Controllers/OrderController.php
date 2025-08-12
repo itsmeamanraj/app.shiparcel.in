@@ -25,7 +25,7 @@ class OrderController extends Controller
      * Show Order Form
      */
     public function show()
-    { 
+    {
         $user = Auth::user();
         $chargeableAmount = $user->chargeable_amount;
 
@@ -52,6 +52,7 @@ class OrderController extends Controller
 
         // Get the wallet record for the user
         $wallet = Wallet::where('user_id', $user->id)->first();
+        $courier_id = (int) $request->input('selected_courier');
 
         // Check for no wallet, insufficient funds, or negative balance
         if (!$wallet || $wallet->amount <= 0 || $wallet->amount < $chargeableAmount) {
@@ -64,17 +65,6 @@ class OrderController extends Controller
             session()->flash('error', 'The products field is required.');
             return redirect()->back();
         }
-
-        $destinationAddress = [
-            'first_name' => $request->consignee_name,
-            'address_line1' => $request->consignee_address1,
-            'address_line2' => $request->consignee_address2 ?? '',
-            'pincode' => $request->consignee_pincode,
-            'city' => $request->consignee_city,
-            'state' => $request->consignee_state,
-            'primary_contact_number' => $request->consignee_mobile,
-            'email_id' => $request->consignee_emailid ?? ''
-        ];
 
         // Always fetch pickup warehouse (source address)
         $pickupWarehouse = Warehouse::where([
@@ -93,33 +83,45 @@ class OrderController extends Controller
             ])->first();
         }
 
-        // Destination Address (using pickupWarehouse values)
-        $sourceAddress = [
-            'first_name' => $pickupWarehouse->sender_name ?? '',
-            'address_line1' => $pickupWarehouse->full_address ?? '',
-            'address_line2' => $pickupWarehouse->address_title ?? '',
-            'pincode' => $pickupWarehouse->pincode ?? '',
-            'city' => $request->source_city ?? $destinationAddress['city'],
-            'state' => $request->source_state ?? $destinationAddress['state'],
-            'primary_contact_number' => $pickupWarehouse->phone ?? '',
-            'email_id' => '',
-        ];
+        if ($courier_id == 1) {
 
-        // Return Address: if return is enabled, use return warehouse; else, use destinationAddress
-        $returnAddress = $request->is_return_address === 'on' ? [
-            'first_name' => $returnWarehouse->sender_name ?? '',
-            'address_line1' => $returnWarehouse->full_address ?? '',
-            'address_line2' => $returnWarehouse->address_title ?? '',
-            'pincode' => $returnWarehouse->pincode ?? '',
-            'city' => $request->source_city ?? $destinationAddress['city'],
-            'state' => $request->source_state ?? $destinationAddress['state'],
-            'primary_contact_number' => $returnWarehouse->phone ?? '',
-            'email_id' => '',
-        ] : $sourceAddress;
-        $courier_id = (int) $request->input('selected_courier');
+            $destinationAddress = [
+                'first_name' => $request->consignee_name,
+                'address_line1' => $request->consignee_address1,
+                'address_line2' => $request->consignee_address2 ?? '',
+                'pincode' => $request->consignee_pincode,
+                'city' => $request->consignee_city,
+                'state' => $request->consignee_state,
+                'primary_contact_number' => $request->consignee_mobile,
+                'email_id' => $request->consignee_emailid ?? ''
+            ];
 
-        //generate tracking id
-        if ($courier_id == 1) { // Ekart
+            // Destination Address (using pickupWarehouse values)
+            $sourceAddress = [
+                'first_name' => $pickupWarehouse->sender_name ?? '',
+                'address_line1' => $pickupWarehouse->full_address ?? '',
+                'address_line2' => $pickupWarehouse->address_title ?? '',
+                'pincode' => $pickupWarehouse->pincode ?? '',
+                'city' => $request->source_city ?? $destinationAddress['city'],
+                'state' => $request->source_state ?? $destinationAddress['state'],
+                'primary_contact_number' => $pickupWarehouse->phone ?? '',
+                'email_id' => '',
+            ];
+
+            // Return Address: if return is enabled, use return warehouse; else, use destinationAddress
+            $returnAddress = $request->is_return_address === 'on' ? [
+                'first_name' => $returnWarehouse->sender_name ?? '',
+                'address_line1' => $returnWarehouse->full_address ?? '',
+                'address_line2' => $returnWarehouse->address_title ?? '',
+                'pincode' => $returnWarehouse->pincode ?? '',
+                'city' => $request->source_city ?? $destinationAddress['city'],
+                'state' => $request->source_state ?? $destinationAddress['state'],
+                'primary_contact_number' => $returnWarehouse->phone ?? '',
+                'email_id' => '',
+            ] : $sourceAddress;
+
+            //generate tracking id
+
             try {
                 $base = 1000000001;
                 $maxOffset = 999999;
@@ -224,322 +226,342 @@ class OrderController extends Controller
                 $response = EkartApiService::sendRequest($url, $apiData);
 
                 if ($response->successful()) {
-                        // dd($apiData);
-                        $responseData = $response->json();
-                        Log::info('API Response:', $responseData);
-                        $response = $responseData['response'][0] ?? [];
+                    // dd($apiData);
+                    $responseData = $response->json();
+                    Log::info('API Response:', $responseData);
+                    $response = $responseData['response'][0] ?? [];
 
-                        if (!$response['status']) {
-                            session()->flash('error', $responseData['responsemsg'][0]);
-                            return redirect()->back();
-                        }
-                        // dd($responseData);
-
-                        $dbData = $apiData;
-                        $dbData['shipment_width'] = $request->shipment_width[0] ?? '0.5';
-                        $dbData['shipment_height'] = $request->shipment_height[0] ?? '0.5';
-                        $dbData['shipment_length'] = $request->shipment_length[0] ?? '0.5';
-                        $dbData['shipment_weight'] = $request->shipment_weight[0] ?? '0.5';
-                        $dbData['order_amount'] = (float) ($request->total_amount ?? 0);
-                        $dbData['payment_mode'] = $request->payment_mode;
-
-                        $dbData['client_order_id']       = $request->order_id;
-                        $dbData['consignee_emailid']     = $request->consignee_emailid ?? '';
-                        $dbData['consignee_pincode']     = $request->consignee_pincode;
-                        $dbData['consignee_mobile']      = $request->consignee_mobile;
-                        $dbData['consignee_phone']       = $request->consignee_phone ?? '';
-                        $dbData['consignee_address1']    = $request->consignee_address1;
-                        $dbData['consignee_address2']    = $request->consignee_address2 ?? '';
-                        $dbData['consignee_name']        = $request->consignee_name;
-
-
-                        // $response = $responseData['response'][0] ?? [];
-
-                        $dbData['ekart_tracking_id'] = $response['tracking_id'] ?? null;
-                        $dbData['ekart_shipment_payment_link'] = $response['shipment_payment_link'] ?? null;
-                        $dbData['ekart_api_status'] = $response['status'] ?? null;
-                        $dbData['ekart_api_status_code'] = $response['status_code'] ?? null;
-                        $dbData['ekart_is_parked'] = $response['is_parked'] ?? null;
-                        $dbData['ekart_request_id'] = $responseData['request_id'] ?? null;
-
-                        // Optional: User & status fields
-                        $dbData['user_id'] = $user->id;
-                        $dbData['status'] = 221;
-
-
-                        $dbData['awb_number'] = $Tracking_id ?? null;
-                        $dbData['order_number'] = $request->order_id ?? null;
-                        // $dbData['job_id'] = $responseData['data']['job_id'] ?? null;
-                        // $dbData['lrnum'] = $responseData['data']['lrnum'] ?? '';
-                        // $dbData['waybills_num_json'] = $responseData['data']['waybills_num_json'] ?? null;
-                        // $dbData['lable_data'] = $responseData['data']['lable_data'] ?? null;
-                        // $dbData['routing_code'] = $responseData['data']['routing_code'] ?? null;
-                        $dbData['partner_display_name'] = 'Ekart';
-                        $dbData['pick_address_id'] = $request->pickup_address;
-                        $dbData['return_address_id'] = $request->return_address ?? $request->pickup_address;
-                        $dbData['courier_name'] = 'Ekart';
-                        $dbData['user_id'] = $user->id;
-                        $dbData['status'] = 221;
-
-
-                        $order = Order::create($dbData);
-
-
-                        foreach ($productDataForDb as $product) {
-                            $product['order_id'] = $order->id;
-                            Product::create($product);
-                        }
-
-                        // Deduct wallet charge
-                        // $chargeableAmount;
-                        // $totalAmount = Wallet::where('user_id', $user->id)->first();
-                        // $updatedAmount = $totalAmount->amount - $chargeableAmount;
-
-                        // $totalAmount->update([
-                        //     'amount' => $updatedAmount
-                        // ]);
-
-                        $totalAmount = Wallet::where('user_id', $user->id)->first();
-
-                        if ($totalAmount) {
-                            $updatedAmount = $totalAmount->amount - $chargeableAmount;
-                            $totalAmount->update(['amount' => $updatedAmount]);
-                        } else {
-                            Wallet::create([
-                                'user_id' => $user->id,
-                                'amount' => -$chargeableAmount
-                            ]);
-                        }
-
-
-
-                        $walletTransactions = WalletTransaction::where([
-                            'user_id' => Auth::id(),
-                            'status' => 101
-                        ])->get();
-
-                        // update status after add amount or update amount
-                        foreach ($walletTransactions as $transaction) {
-                            $transaction->update(['status' => 102]);
-                        }
-                        // $user->logActivity($user, 'Order created successfully', 'order_created');
-
-                        session()->flash('success', 'Order placed successfully! Tracking Id: ' . $response['tracking_id']);
-                        return redirect()->back();
-                    } else {
-                        $responseBody = $response->json();
-                        Log::error('API Error:', ['response' => $responseBody]);
-
-                        session()->flash('error', $responseBody['responsemsg'] ?? 'Unknown error occurred');
+                    if (!$response['status']) {
+                        session()->flash('error', $responseData['responsemsg'][0]);
                         return redirect()->back();
                     }
+                    // dd($responseData);
+
+                    $dbData = $apiData;
+                    $dbData['shipment_width'] = $request->shipment_width[0] ?? '0.5';
+                    $dbData['shipment_height'] = $request->shipment_height[0] ?? '0.5';
+                    $dbData['shipment_length'] = $request->shipment_length[0] ?? '0.5';
+                    $dbData['shipment_weight'] = $request->shipment_weight[0] ?? '0.5';
+                    $dbData['order_amount'] = (float) ($request->total_amount ?? 0);
+                    $dbData['payment_mode'] = $request->payment_mode;
+
+                    $dbData['client_order_id']       = $request->order_id;
+                    $dbData['consignee_emailid']     = $request->consignee_emailid ?? '';
+                    $dbData['consignee_pincode']     = $request->consignee_pincode;
+                    $dbData['consignee_mobile']      = $request->consignee_mobile;
+                    $dbData['consignee_phone']       = $request->consignee_phone ?? '';
+                    $dbData['consignee_address1']    = $request->consignee_address1;
+                    $dbData['consignee_address2']    = $request->consignee_address2 ?? '';
+                    $dbData['consignee_name']        = $request->consignee_name;
+
+
+                    // $response = $responseData['response'][0] ?? [];
+
+                    $dbData['ekart_tracking_id'] = $response['tracking_id'] ?? null;
+                    $dbData['ekart_shipment_payment_link'] = $response['shipment_payment_link'] ?? null;
+                    $dbData['ekart_api_status'] = $response['status'] ?? null;
+                    $dbData['ekart_api_status_code'] = $response['status_code'] ?? null;
+                    $dbData['ekart_is_parked'] = $response['is_parked'] ?? null;
+                    $dbData['ekart_request_id'] = $responseData['request_id'] ?? null;
+
+                    // Optional: User & status fields
+                    $dbData['user_id'] = $user->id;
+                    $dbData['status'] = 221;
+
+
+                    $dbData['awb_number'] = $Tracking_id ?? null;
+                    $dbData['order_number'] = $request->order_id ?? null;
+                    // $dbData['job_id'] = $responseData['data']['job_id'] ?? null;
+                    // $dbData['lrnum'] = $responseData['data']['lrnum'] ?? '';
+                    // $dbData['waybills_num_json'] = $responseData['data']['waybills_num_json'] ?? null;
+                    // $dbData['lable_data'] = $responseData['data']['lable_data'] ?? null;
+                    // $dbData['routing_code'] = $responseData['data']['routing_code'] ?? null;
+                    $dbData['partner_display_name'] = 'Ekart';
+                    $dbData['pick_address_id'] = $request->pickup_address;
+                    $dbData['return_address_id'] = $request->return_address ?? $request->pickup_address;
+                    $dbData['courier_name'] = 'Ekart';
+                    $dbData['user_id'] = $user->id;
+                    $dbData['status'] = 221;
+
+
+                    $order = Order::create($dbData);
+
+
+                    foreach ($productDataForDb as $product) {
+                        $product['order_id'] = $order->id;
+                        Product::create($product);
+                    }
+
+                    // Deduct wallet charge
+                    // $chargeableAmount;
+                    // $totalAmount = Wallet::where('user_id', $user->id)->first();
+                    // $updatedAmount = $totalAmount->amount - $chargeableAmount;
+
+                    // $totalAmount->update([
+                    //     'amount' => $updatedAmount
+                    // ]);
+
+                    $totalAmount = Wallet::where('user_id', $user->id)->first();
+
+                    if ($totalAmount) {
+                        $updatedAmount = $totalAmount->amount - $chargeableAmount;
+                        $totalAmount->update(['amount' => $updatedAmount]);
+                    } else {
+                        Wallet::create([
+                            'user_id' => $user->id,
+                            'amount' => -$chargeableAmount
+                        ]);
+                    }
+
+
+
+                    $walletTransactions = WalletTransaction::where([
+                        'user_id' => Auth::id(),
+                        'status' => 101
+                    ])->get();
+
+                    // update status after add amount or update amount
+                    foreach ($walletTransactions as $transaction) {
+                        $transaction->update(['status' => 102]);
+                    }
+                    // $user->logActivity($user, 'Order created successfully', 'order_created');
+
+                    session()->flash('success', 'Order placed successfully! Tracking Id: ' . $response['tracking_id']);
+                    return redirect()->back();
+                } else {
+                    $responseBody = $response->json();
+                    Log::error('API Error:', ['response' => $responseBody]);
+
+                    session()->flash('error', $responseBody['responsemsg'] ?? 'Unknown error occurred');
+                    return redirect()->back();
+                }
             } catch (Exception $e) {
                 Log::error('Ekart Exception:', ['message' => $e->getMessage()]);
                 session()->flash('error', 'An error occurred: ' . $e->getMessage());
                 return redirect()->back();
             }
+        }else if($courier_id == 2) { // XpressBees
+            try {
+                $xpressPayload = [
+                    "BusinessAccountName" => "ANKUR PARSHAR",
+                    "OrderNo" => $request->order_id,
+                    "SubOrderNo" => $request->order_id . '-1',
+                    "OrderType" => ($request->payment_mode == 'Cod') ? 'COD' : 'PrePaid',
+                    "CollectibleAmount" => ($request->payment_mode == 'Cod') ? (string)$request->total_amount : "0",
+                    "DeclaredValue" => (string)($request->total_amount ?? "0"),
+                    "PickupType" => "Vendor",
+                    "Quantity" => count($request->product_name) > 0 ? count($request->product_name) : 1,
+                    "ServiceType" => "SD",
 
-        }if ($courier_id == 2) { // XpressBees
-    try {
-        $xpressPayload = [
-            "BusinessAccountName" => "ANKUR PARSHAR",
-            "OrderNo" => $request->order_id,
-            "SubOrderNo" => $request->order_id . '-1',
-            "OrderType" => ($request->payment_mode == 'Cod') ? 'COD' : 'PrePaid',
-            "CollectibleAmount" => ($request->payment_mode == 'Cod') ? (string)$request->total_amount : "0",
-            "DeclaredValue" => (string)($request->total_amount ?? "0"),
-            "PickupType" => "Vendor",
-            "Quantity" => count($request->product_name) > 0 ? count($request->product_name) : 1,
-            "ServiceType" => "SD",
+                    "DropDetails" => [
+                        "Addresses" => [[
+                            "Address" => $request->consignee_address1,
+                            "City" => $request->consignee_city ?? '',
+                            "EmailID" => $request->consignee_emailid ?? '',
+                            "Name" => $request->consignee_name,
+                            "PinCode" => $request->consignee_pincode,
+                            "State" => $request->consignee_state ?? '',
+                            "Type" => "Primary",
+                        ]],
+                        "ContactDetails" => [[
+                            "PhoneNo" => $request->consignee_mobile,
+                            "Type" => "Primary",
+                        ]],
+                    ],
 
-            "DropDetails" => [
-                "Addresses" => [[
-                    "Address" => $request->consignee_address1,
-                    "City" => $request->consignee_city ?? '',
-                    "EmailID" => $request->consignee_emailid ?? '',
-                    "Name" => $request->consignee_name,
-                    "PinCode" => $request->consignee_pincode,
-                    "State" => $request->consignee_state ?? '',
-                    "Type" => "Primary",
-                ]],
-                "ContactDetails" => [[
-                    "PhoneNo" => $request->consignee_mobile,
-                    "Type" => "Primary",
-                ]],
-            ],
+                    "PickupDetails" => [
+                        "Addresses" => [[
+                            "Address" => $pickupWarehouse->full_address ?? '',
+                            "City" => $pickupWarehouse->city ?? '',
+                            "EmailID" => '',
+                            "Name" => $pickupWarehouse->sender_name ?? '',
+                            "PinCode" => $pickupWarehouse->pincode ?? '',
+                            "State" => $pickupWarehouse->state ?? '',
+                            "Type" => "Primary",
+                        ]],
+                        "ContactDetails" => [[
+                            "PhoneNo" => $pickupWarehouse->phone ?? '',
+                            "Type" => "Primary",
+                        ]],
+                        "PickupVendorCode" => env('XPRESSBEES_VENDOR_CODE', 'YOUR_VENDOR_CODE')
+                    ],
 
-            "PickupDetails" => [
-                "Addresses" => [[
-                    "Address" => $pickupWarehouse->full_address ?? '',
-                    "City" => $request->source_city ?? $destinationAddress['city'] ?? '',
-                    "EmailID" => '',
-                    "Name" => $pickupWarehouse->sender_name ?? '',
-                    "PinCode" => $pickupWarehouse->pincode ?? '',
-                    "State" => $request->source_state ?? $destinationAddress['state'] ?? '',
-                    "Type" => "Primary",
-                ]],
-                "ContactDetails" => [[
-                    "PhoneNo" => $pickupWarehouse->phone ?? '',
-                    "Type" => "Primary",
-                ]],
-                "PickupVendorCode" => env('XPRESSBEES_VENDOR_CODE', 'YOUR_VENDOR_CODE')
-            ],
+                    "RTODetails" => [
+                        "Addresses" => [[
+                            "Address" => ($request->is_return_address === 'on' ? $returnWarehouse->full_address : $pickupWarehouse->full_address) ?? '',
+                            "City" => ($request->is_return_address === 'on' ? $returnWarehouse->city : $pickupWarehouse->city) ?? '',
+                            "EmailID" => '',
+                            "Name" => ($request->is_return_address === 'on' ? $returnWarehouse->sender_name : $pickupWarehouse->sender_name) ?? '',
+                            "PinCode" => ($request->is_return_address === 'on' ? $returnWarehouse->pincode : $pickupWarehouse->pincode) ?? '',
+                            "State" => ($request->is_return_address === 'on' ? $returnWarehouse->state : $pickupWarehouse->pincode) ?? '',
+                            "Type" => "Primary",
+                        ]],
+                        "ContactDetails" => [[
+                            "PhoneNo" => ($request->is_return_address === 'on' ? $returnWarehouse->phone : $pickupWarehouse->phone) ?? '',
+                            "Type" => "Primary",
+                        ]],
+                    ],
 
-            "RTODetails" => [
-                "Addresses" => [[
-                    "Address" => ($request->is_return_address === 'on' ? $returnWarehouse->full_address : $pickupWarehouse->full_address) ?? '',
-                    "City" => ($request->is_return_address === 'on' ? $request->source_city : $destinationAddress['city']) ?? '',
-                    "EmailID" => '',
-                    "Name" => ($request->is_return_address === 'on' ? $returnWarehouse->sender_name : $pickupWarehouse->sender_name) ?? '',
-                    "PinCode" => ($request->is_return_address === 'on' ? $returnWarehouse->pincode : $pickupWarehouse->pincode) ?? '',
-                    "State" => ($request->is_return_address === 'on' ? $request->source_state : $destinationAddress['state']) ?? '',
-                    "Type" => "Primary",
-                ]],
-                "ContactDetails" => [[
-                    "PhoneNo" => ($request->is_return_address === 'on' ? $returnWarehouse->phone : $pickupWarehouse->phone) ?? '',
-                    "Type" => "Primary",
-                ]],
-            ],
+                    "ManifestID" => $request->order_id,
+                    "IsEssential" => "false",
+                    "IsSecondaryPacking" => "false",
 
-            "ManifestID" => $request->order_id,
-            "IsEssential" => "false",
-            "IsSecondaryPacking" => "false",
-
-            "PackageDetails" => [
-                "Dimensions" => [
-                    "Height" => (string)($request->shipment_height[0] ?? "1"),
-                    "Length" => (string)($request->shipment_length[0] ?? "1"),
-                    "Width" => (string)($request->shipment_width[0] ?? "1"),
-                ],
-                "Weight" => [
-                    "BillableWeight" => (string)($request->shipment_weight[0] ?? "1"),
-                    "PhyWeight" => (string)($request->shipment_weight[0] ?? "1"),
-                    "VolWeight" => "0"
-                ]
-            ],
-
-            "GSTMultiSellerInfo" => []
-        ];
-
-        if ($request->has('gst_invoice_number')) {
-            $xpressPayload['GSTMultiSellerInfo'][] = [
-                "BuyerGSTRegNumber" => $request->buyer_gstin ?? '',
-                "InvoiceDate" => now()->format('d-m-Y'),
-                "InvoiceNumber" => $request->gst_invoice_number ?? '',
-                "IsSellerRegUnderGST" => "Yes",
-                "SellerAddress" => $pickupWarehouse->address ?? '',
-                "SellerGSTRegNumber" => $pickupWarehouse->gstin ?? '',
-                "SellerName" => $pickupWarehouse->contact_name ?? '',
-                "SellerPincode" => $pickupWarehouse->pincode ?? '',
-                "SupplySellerStatePlace" => $pickupWarehouse->state ?? '',
-                "HSNDetails" => $request->gst_hsn_details ?? []
-            ];
-        }
-
-        Log::info('XpressBees API Request:', $xpressPayload);
-
-        $response = XpressbeesApiService::sendForwardManifest($xpressPayload);
-
-        Log::info('XpressBees API Response:', $response);
-
-        if (isset($response['error']) && $response['error']) {
-            Log::error('XpressBees API Error:', $response);
-            session()->flash('error', $response['message'] ?? 'XpressBees API failed.');
-            return redirect()->back();
-        }
-
-        if (!isset($response['ReturnCode']) || $response['ReturnCode'] != 100) {
-            session()->flash('error', 'XpressBees API Error: ' . ($response['ReturnMessage'] ?? 'Unknown error'));
-            return redirect()->back();
-        }
-      $dbData = $xpressPayload;
-
-        $dbData['shipment_width'] = $request->shipment_width[0] ?? '0.5';
-        $dbData['shipment_height'] = $request->shipment_height[0] ?? '0.5';
-        $dbData['shipment_length'] = $request->shipment_length[0] ?? '0.5';
-        $dbData['shipment_weight'] = $request->shipment_weight[0] ?? '0.5';
-        $dbData['order_amount'] = (float) ($request->total_amount ?? 0);
-        $dbData['payment_mode'] = $request->payment_mode ?? 'prepaid';
-
-        $dbData['invoice_number'] = $request->invoice_number ?? '';
-
-        $dbData['client_order_id'] = $request->order_id ?? null;
-        $dbData['consignee_emailid'] = $request->consignee_emailid ?? '';
-        $dbData['consignee_pincode'] = $request->consignee_pincode ?? '';
-        $dbData['consignee_mobile'] = $request->consignee_mobile ?? '';
-        $dbData['consignee_phone'] = $request->consignee_phone ?? '';
-        $dbData['consignee_address1'] = $request->consignee_address1 ?? '';
-        $dbData['consignee_address2'] = $request->consignee_address2 ?? '';
-        $dbData['consignee_name'] = $request->consignee_name ?? '';
-        $dbData['awb_number'] = $response['AWBNo'] ?? null;
-        $dbData['xpressbees_awb_no'] = $response['AWBNo'] ?? null;
-        $dbData['xpressbees_api_status_code'] = $response['ReturnCode'] ?? null;
-        $dbData['xpressbees_api_status'] = $response['ReturnMessage'] ?? null;
-        $dbData['xpressbees_token_number'] = $response['TokenNumber'] ?? null;
-        $dbData['xpressbees_is_parked'] = $response['IsParked'] ?? null;
-        $dbData['xpressbees_payment_link'] = $response['ShipmentPaymentLink'] ?? null;
-
-        $dbData['user_id'] = $user->id;
-        $dbData['status'] = 221;
-        $dbData['order_number'] = $request->order_id ?? null;
-        $dbData['partner_display_name'] = 'XpressBeez';
-        $dbData['pick_address_id'] = $request->pickup_address ?? null;
-        $dbData['return_address_id'] = $request->return_address ?? $request->pickup_address ?? null;
-        $dbData['courier_name'] = 'XpressBeez';
-        $productDataForDb = [];
-
-        if ($request->has('product_name') && is_array($request->product_name)) {
-            foreach ($request->product_name as $index => $product_name) {
-                $productDataForDb[] = [
-                    'product_name' => $product_name,
-                    'product_sku' => $request->product_sku[$index] ?? '',
-                    'product_value' => (float)($request->product_value[$index] ?? 0),
-                    'product_hsnsac' => $request->product_sku[$index] ?? '',
-                    'product_taxper' => (float)($request->product_taxper[$index] ?? 0),
-                    'product_category' => $request->product_category[$index] ?? 'Uncategorized',
-                    'product_quantity' => (int)($request->product_quantity[$index] ?? 1),
-                    'product_description' => '',
+                    "PackageDetails" => [
+                        "Dimensions" => [
+                            "Height" => (string)($request->shipment_height[0] ?? "1"),
+                            "Length" => (string)($request->shipment_length[0] ?? "1"),
+                            "Width" => (string)($request->shipment_width[0] ?? "1"),
+                        ],
+                        "Weight" => [
+                            "BillableWeight" => (string)($request->shipment_weight[0] ?? "1"),
+                            "PhyWeight" => (string)($request->shipment_weight[0] ?? "1"),
+                            "VolWeight" => "0"
+                        ]
+                    ]
                 ];
+
+                $invoiceNumber = 'ship' . mt_rand(100000, 999999);
+
+                // Always create GSTMultiSellerInfo
+                $gstSellerInfo = [
+                    "BuyerGSTRegNumber"     => '',
+                    "EWayBillSrNumber"      => "",
+                    "InvoiceDate"           => now()->format('d-m-Y'),
+                    "InvoiceNumber"         => $invoiceNumber ?? '',
+                    "IsSellerRegUnderGST"   => "",
+                    "ProductUniqueID"       => "",
+                    "SellerAddress"         => '',
+                    "SellerGSTRegNumber"    => '',
+                    "SellerName"            => '',
+                    "SellerPincode"         => '',
+                    "SupplySellerStatePlace"=> '',
+                    "HSNDetails"            => []
+                ];
+
+                // Loop through products for HSNDetails
+                if ($request->has('product_name') && is_array($request->product_name)) {
+                    foreach ($request->product_name as $index => $product_name) {
+                        $taxableValue = (float) ($request->product_value[$index] ?? 0);
+
+                        $gstSellerInfo['HSNDetails'][] = [
+                            "ProductCategory" => $request->product_category[$index] ?? 'General',
+                            "ProductDesc"     => $request->product_name[$index] ?? $product_name,
+                            "CGSTAmount"      => '',
+                            "SGSTAmount"      => '',
+                            "GSTTaxTotal"     => '',
+                            "HSNCode"         => $request->product_hsn[$index] ?? '',
+                            "TaxableValue"    => $taxableValue
+                        ];
+                    }
+                }
+
+                $xpressPayload['GSTMultiSellerInfo'][] = $gstSellerInfo;
+
+                // dd($xpressPayload);
+                Log::info('XpressBees API Request:', $xpressPayload);
+
+                $response = XpressbeesApiService::sendForwardManifest($xpressPayload);
+
+                Log::info('XpressBees API Response:', $response);
+
+                if (isset($response['error']) && $response['error']) {
+                    Log::error('XpressBees API Error:', $response);
+                    session()->flash('error', $response['message'] ?? 'XpressBees API failed.');
+                    return redirect()->back();
+                }
+
+                if (!isset($response['ReturnCode']) || $response['ReturnCode'] != 100) {
+                    session()->flash('error', 'XpressBees API Error: ' . ($response['ReturnMessage'] ?? 'Unknown error'));
+                    return redirect()->back();
+                }
+                $dbData = $xpressPayload;
+
+                $dbData['shipment_width'] = $request->shipment_width[0] ?? '0.5';
+                $dbData['shipment_height'] = $request->shipment_height[0] ?? '0.5';
+                $dbData['shipment_length'] = $request->shipment_length[0] ?? '0.5';
+                $dbData['shipment_weight'] = $request->shipment_weight[0] ?? '0.5';
+                $dbData['order_amount'] = (float) ($request->total_amount ?? 0);
+                $dbData['payment_mode'] = $request->payment_mode ?? 'prepaid';
+
+                $dbData['invoice_number'] = $invoiceNumber ?? '';
+
+                $dbData['client_order_id'] = $request->order_id ?? null;
+                $dbData['consignee_emailid'] = $request->consignee_emailid ?? '';
+                $dbData['consignee_pincode'] = $request->consignee_pincode ?? '';
+                $dbData['consignee_mobile'] = $request->consignee_mobile ?? '';
+                $dbData['consignee_phone'] = $request->consignee_phone ?? '';
+                $dbData['consignee_address1'] = $request->consignee_address1 ?? '';
+                $dbData['consignee_address2'] = $request->consignee_address2 ?? '';
+                $dbData['consignee_name'] = $request->consignee_name ?? '';
+                $dbData['awb_number'] = $response['AWBNo'] ?? null;
+                $dbData['xpressbees_awb_no'] = $response['AWBNo'] ?? null;
+                $dbData['xpressbees_api_status_code'] = $response['ReturnCode'] ?? null;
+                $dbData['xpressbees_api_status'] = $response['ReturnMessage'] ?? null;
+                $dbData['xpressbees_token_number'] = $response['TokenNumber'] ?? null;
+                $dbData['xpressbees_is_parked'] = $response['IsParked'] ?? null;
+                $dbData['xpressbees_payment_link'] = $response['ShipmentPaymentLink'] ?? null;
+
+                $dbData['user_id'] = $user->id;
+                $dbData['status'] = 221;
+                $dbData['order_number'] = $request->order_id ?? null;
+                $dbData['partner_display_name'] = 'XpressBees';
+                $dbData['pick_address_id'] = $request->pickup_address ?? null;
+                $dbData['return_address_id'] = $request->return_address ?? $request->pickup_address ?? null;
+                $dbData['courier_name'] = 'XpressBees';
+                $productDataForDb = [];
+
+                if ($request->has('product_name') && is_array($request->product_name)) {
+                    foreach ($request->product_name as $index => $product_name) {
+                        $productDataForDb[] = [
+                            'product_name' => $product_name,
+                            'product_sku' => $request->product_sku[$index] ?? '',
+                            'product_value' => (float)($request->product_value[$index] ?? 0),
+                            'product_hsnsac' => $request->product_sku[$index] ?? '',
+                            'product_taxper' => (float)($request->product_taxper[$index] ?? 0),
+                            'product_category' => $request->product_category[$index] ?? 'Uncategorized',
+                            'product_quantity' => (int)($request->product_quantity[$index] ?? 1),
+                            'product_description' => '',
+                        ];
+                    }
+                }
+                // dd($dbData);
+                $order = Order::create($dbData);
+
+                foreach ($productDataForDb as $product) {
+                    $product['order_id'] = $order->id;
+                    Product::create($product);
+                }
+
+                $totalAmount = Wallet::where('user_id', $user->id)->first();
+
+                if ($totalAmount) {
+                    $updatedAmount = $totalAmount->amount - $chargeableAmount;
+                    $totalAmount->update(['amount' => $updatedAmount]);
+                } else {
+                    Wallet::create([
+                        'user_id' => $user->id,
+                        'amount' => -$chargeableAmount,
+                    ]);
+                }
+
+                $walletTransactions = WalletTransaction::where([
+                    'user_id' => Auth::id(),
+                    'status' => 101,
+                ])->get();
+
+                foreach ($walletTransactions as $transaction) {
+                    $transaction->update(['status' => 102]);
+                }
+
+                session()->flash('success', 'Order placed successfully! AWB: ' . ($dbData['xpressbees_awb_no'] ?? ''));
+                return redirect()->back();
+
+            } catch (Exception $e) {
+                Log::error('XpressBees Exception:', ['message' => $e->getMessage()]);
+                session()->flash('error', 'XpressBees Error: ' . $e->getMessage());
+                return redirect()->back();
             }
         }
-       // dd($dbData);
-        $order = Order::create($dbData);
-
-        foreach ($productDataForDb as $product) {
-            $product['order_id'] = $order->id;
-            Product::create($product);
-        }
-
-        $totalAmount = Wallet::where('user_id', $user->id)->first();
-
-        if ($totalAmount) {
-            $updatedAmount = $totalAmount->amount - $chargeableAmount;
-            $totalAmount->update(['amount' => $updatedAmount]);
-        } else {
-            Wallet::create([
-                'user_id' => $user->id,
-                'amount' => -$chargeableAmount,
-            ]);
-        }
-
-        $walletTransactions = WalletTransaction::where([
-            'user_id' => Auth::id(),
-            'status' => 101,
-        ])->get();
-
-        foreach ($walletTransactions as $transaction) {
-            $transaction->update(['status' => 102]);
-        }
-
-        session()->flash('success', 'Order placed successfully! AWB: ' . ($dbData['xpressbees_awb_no'] ?? ''));
-        return redirect()->back();
-
-    } catch (Exception $e) {
-        Log::error('XpressBees Exception:', ['message' => $e->getMessage()]);
-        session()->flash('error', 'XpressBees Error: ' . $e->getMessage());
-        return redirect()->back();
-    }
-}
 
     }
 
