@@ -294,7 +294,7 @@
 
                                                         <div class="col-md-3 col-lg-3 col-xl-3 mb-3">
                                                             <label for="form-label">Total Amount<span class="text-danger">*</span></label>
-                                                            <input type="text" id="total_amount" name="total_amount" class="form-control wizard-required" placeholder="Enter total amount..." required >
+                                                            <input type="text" id="total_amount" name="total_amount" class="form-control wizard-required" placeholder="Enter total amount..." required>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -309,7 +309,32 @@
 
                                         <fieldset class="wizard-fieldset">
                                             <div class="form-group">
+                                                  <label class="fw-bold mb-2">Select Courier</label>
+                                            @php
+                                                $selectedCourier = old('selected_courier', 1); // Default Ekart id = 1
+                                            @endphp
 
+                                            <div class="row">
+                                                @foreach($couriers as $courier)
+                                                    <div class="col-md-4 mb-2">
+                                                        <div class="form-check d-flex align-items-center">
+                                                            <input class="form-check-input me-2"
+                                                                type="radio"
+                                                                name="selected_courier"
+                                                                id="courier_{{ $courier->id }}"
+                                                                value="{{ $courier->id }}"
+                                                                {{ $courier->id == $selectedCourier ? 'checked' : '' }}>
+
+                                                            <label class="form-check-label d-flex align-items-center" for="courier_{{ $courier->id }}">
+                                                                <img src="{{ asset($courier->image_url) }}"
+                                                                    alt="{{ $courier->name }}"
+                                                                    style="height: 25px;"
+                                                                    class="me-2">
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                @endforeach
+                                            </div>
                                                 <div class="row form-group mb-0">
                                                     <div class="col-md-4 col-lg-4 col-xl-4 mb-3">
                                                         <label for="shipment_weight">Actual Weight<span

@@ -50,6 +50,12 @@ class Order extends Model
         'ekart_is_parked',
         'ekart_request_id',
         'ekart_api_status_code',
+        'xpressbees_awb_no',           
+        'xpressbees_api_status_code',  
+        'xpressbees_api_status',       
+        'xpressbees_token_number',    
+        'xpressbees_is_parked',        
+        'xpressbees_payment_link', 
 
 
     ];
