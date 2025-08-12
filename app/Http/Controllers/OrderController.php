@@ -150,7 +150,7 @@ class OrderController extends Controller
                                         'delivery_type' => 'SMALL',
                                         'source' => ['address' => $sourceAddress],
                                         'destination' => ['address' => $destinationAddress],
-                                        'return_location' => ['address' => $returnAddress],
+                                        'return_location' => ['address' => $returnAddress ?? $sourceAddress],
                                     ],
                                     'shipment' => [
                                         'client_reference_id' => $Tracking_id,
@@ -471,7 +471,7 @@ class OrderController extends Controller
         $dbData['consignee_address1'] = $request->consignee_address1 ?? '';
         $dbData['consignee_address2'] = $request->consignee_address2 ?? '';
         $dbData['consignee_name'] = $request->consignee_name ?? '';
-
+        $dbData['awb_number'] = $response['AWBNo'] ?? null;
         $dbData['xpressbees_awb_no'] = $response['AWBNo'] ?? null;
         $dbData['xpressbees_api_status_code'] = $response['ReturnCode'] ?? null;
         $dbData['xpressbees_api_status'] = $response['ReturnMessage'] ?? null;
@@ -482,10 +482,10 @@ class OrderController extends Controller
         $dbData['user_id'] = $user->id;
         $dbData['status'] = 221;
         $dbData['order_number'] = $request->order_id ?? null;
-        $dbData['partner_display_name'] = 'XpressBees';
+        $dbData['partner_display_name'] = 'XpressBeez';
         $dbData['pick_address_id'] = $request->pickup_address ?? null;
         $dbData['return_address_id'] = $request->return_address ?? $request->pickup_address ?? null;
-        $dbData['courier_name'] = 'XpressBees';
+        $dbData['courier_name'] = 'XpressBeez';
         $productDataForDb = [];
 
         if ($request->has('product_name') && is_array($request->product_name)) {

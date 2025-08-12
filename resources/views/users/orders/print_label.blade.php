@@ -169,8 +169,11 @@
                         <h3 class="w-75">{{ $order->customer_name ?? '' }}</h3>
                     </td>
                     <td class="text-center">
-                        <img src="{{ asset('assets/images/ekart.png') }}" alt="{{ $order->courier_name ?? '' }}"
-                            style="width: 100%;">
+                     <img 
+                        src="{{ asset('assets/images/' . strtolower($order->courier_name ?? 'default') . '.png') }}" 
+                        alt="{{ $order->courier_name ?? '' }}" 
+                        style="width: 100%;">
+
                         <p style="font-size: 14px; margin-bottom:0px" class="extype">
                             <b></b> {{ $order->express_type ?? '' }}
                         </p>
