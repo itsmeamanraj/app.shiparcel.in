@@ -5,10 +5,21 @@
 @section('content')
 <div class="dashboard-main-body">
 
-    <div class="card">
+    <div class="card">            
         <div class="card-body">
             <h6 class="mb-4 text-xl">Create Single Order</h6>
             <p class="text-neutral-500">Fill up your details and proceed next steps.</p>
+            <p>
+                @if (session('success'))
+            <div class="alert alert-success">
+                {{ session('success') }}
+            </div>
+            @endif
+
+            @if (session('error'))
+            <div class="alert alert-danger">{{ session('error') }}</div>
+            @endif
+            </p>
             <p>
             @if(session('error_file'))
                 <div class="alert alert-info">
