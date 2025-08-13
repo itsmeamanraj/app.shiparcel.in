@@ -1354,7 +1354,7 @@ class OrderController extends Controller
             'Tax',
             'Status',
             'Created At',
-            'Product Details', // Yeh ek column hoga jisme comma separated products honge
+            'Product Details', 
             'Courier_name'
         ];
 
@@ -1363,7 +1363,6 @@ class OrderController extends Controller
             fputcsv($file, $columns);
 
             foreach ($orders as $order) {
-                // Products ko ek string me join karna
                 $productDetails = $order->productsData->map(function ($product) {
                     return ($product->product_name ?? '') . ' (SKU: ' . ($product->product_sku ?? '') . ', Qty: ' . ($product->product_quantity ?? '') . ')';
                 })->implode(', ');
