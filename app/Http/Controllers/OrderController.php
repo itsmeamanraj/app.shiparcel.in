@@ -747,6 +747,7 @@ class OrderController extends Controller
     public function bulk_order(Request $request)
     {
         if ($request->hasFile('multiple_shipment')) {
+            $courier_id = (int) $request->input('selected_courier');
             $user = Auth::user();
             $file = $request->file('multiple_shipment');
             $filename = time() . '_' . $file->getClientOriginalName();
@@ -757,199 +758,480 @@ class OrderController extends Controller
             $header = array_shift($rows);
 
             $errors = [];
+            $errorRows = [];
             $successCount = 0;
+            $failedCount = 0;
 
-            foreach ($rows as $rowIndex => $row) {
-                $data = array_combine($header, $row);
+            // Prepare error file header
+            $errorHeader = array_merge($header, ['Error_Reason']);
+            $errorRows[] = $errorHeader;
 
-                // Generate tracking id
-                $base = 1000000001;
-                $maxOffset = 999999;
-                $randomNumber = $base + rand(0, $maxOffset);
-                $paymentMode = $data['payment_mode'] ?? 'prepaid';
-                $modeCode = ($paymentMode === 'Cod') ? 'C' : 'P';
-                $Tracking_id = 'HRD' . $modeCode . $randomNumber;
+            if($courier_id == '1'){
+                foreach ($rows as $rowIndex => $row) {
+                    $data = array_combine($header, $row);
 
-                // Generate warehouse
-                $pickupWarehouse = Warehouse::where([
-                    'status' => 1,
-                    'user_id' => $user->id,
-                    'id' => $data['pickup_id']
-                ])->first();
+                    // Generate tracking id
+                    $base = 1000000001;
+                    $maxOffset = 999999;
+                    $randomNumber = $base + rand(0, $maxOffset);
+                    $paymentMode = $data['payment_mode'] ?? 'prepaid';
+                    $modeCode = ($paymentMode === 'Cod') ? 'C' : 'P';
+                    $Tracking_id = 'HRD' . $modeCode . $randomNumber;
 
-                $returnWarehouse = Warehouse::where([
-                    'status' => 1,
-                    'user_id' => $user->id,
-                    'id' => $data['return_id']
-                ])->first();
+                    // Generate warehouse
+                    $pickupWarehouse = Warehouse::where([
+                        'status' => 1,
+                        'user_id' => $user->id,
+                        'id' => $data['pickup_id']
+                    ])->first();
 
-                // Destination Address
-                $sourceAddress = [
-                    'first_name' => $pickupWarehouse->sender_name ?? '',
-                    'address_line1' => $pickupWarehouse->full_address ?? '',
-                    'address_line2' => $pickupWarehouse->address_title ?? '',
-                    'pincode' => $pickupWarehouse->pincode ?? '',
-                    'city' => $pickupWarehouse->city ?? '',
-                    'state' => $pickupWarehouse->state ?? '',
-                    'primary_contact_number' => $pickupWarehouse->phone ?? '',
-                    'email_id' => '',
-                ];
+                    $returnWarehouse = Warehouse::where([
+                        'status' => 1,
+                        'user_id' => $user->id,
+                        'id' => $data['return_id']
+                    ])->first();
 
-                // Return Address
-                $returnAddress = [
-                    'first_name' => $returnWarehouse->sender_name ?? '',
-                    'address_line1' => $returnWarehouse->full_address ?? '',
-                    'address_line2' => $returnWarehouse->address_title ?? '',
-                    'pincode' => $returnWarehouse->pincode ?? '',
-                    'city' => $pickupWarehouse->city ?? '',
-                    'state' => $pickupWarehouse->state ?? '',
-                    'primary_contact_number' => $returnWarehouse->phone ?? '',
-                    'email_id' => '',
-                ];
+                    // Destination Address
+                    $sourceAddress = [
+                        'first_name' => $pickupWarehouse->sender_name ?? '',
+                        'address_line1' => $pickupWarehouse->full_address ?? '',
+                        'address_line2' => $pickupWarehouse->address_title ?? '',
+                        'pincode' => $pickupWarehouse->pincode ?? '',
+                        'city' => $pickupWarehouse->city ?? '',
+                        'state' => $pickupWarehouse->state ?? '',
+                        'primary_contact_number' => $pickupWarehouse->phone ?? '',
+                        'email_id' => '',
+                    ];
 
-                $chargeableAmount = $user->chargeable_amount;
+                    // Return Address
+                    $returnAddress = [
+                        'first_name' => $returnWarehouse->sender_name ?? '',
+                        'address_line1' => $returnWarehouse->full_address ?? '',
+                        'address_line2' => $returnWarehouse->address_title ?? '',
+                        'pincode' => $returnWarehouse->pincode ?? '',
+                        'city' => $pickupWarehouse->city ?? '',
+                        'state' => $pickupWarehouse->state ?? '',
+                        'primary_contact_number' => $returnWarehouse->phone ?? '',
+                        'email_id' => '',
+                    ];
 
-                // Get the wallet record for the user
-                $wallet = Wallet::where('user_id', $user->id)->first();
+                    $chargeableAmount = $user->chargeable_amount;
 
-                // Check for no wallet, insufficient funds, or negative balance
-                if (!$wallet || $wallet->amount <= 0 || $wallet->amount < $chargeableAmount) {
-                    $errors[] = 'Insufficient Balance for order at row ' . ($rowIndex + 1) . '. Please recharge your wallet!';
-                    continue; // Skip to the next row
-                }
+                    // Get the wallet record for the user
+                    $wallet = Wallet::where('user_id', $user->id)->first();
 
-                $productDataForDb = [];
-                $shipmentItems = [];
-                for ($i = 1; $i <= 3; $i++) {
-                    $nameKey = "product_name_$i";
-                    if (!empty($data[$nameKey])) {
-                        $shipmentItems[] = [
-                            'product_id' => $data["product_name_$i"] ?? '',
-                            'category' => $data["product_category_$i"] ?? 'Uncategorized',
-                            'product_title' => $data["product_name_$i"] ?? '',
-                            'quantity' => (int) ($data["product_quantity_$i"] ?? 1),
-                            'cost' => [
-                                'total_sale_value' => (float) ($data["product_unit_price_$i"] ?? 0),
-                                'total_tax_value' => 0,
-                                'tax_breakup' => [
-                                    'cgst' => 0,
-                                    'sgst' => 0,
-                                    'igst' => 0,
-                                ]
-                            ],
-                            'seller_details' => [
-                                'seller_reg_name' => 'shiparcel',
-                                'gstin_id' => null
-                            ],
-                            'hsn' => $data["product_name_$i"] ?? '',
-                            'ern' => null,
-                            'discount' => null,
-                            'item_attributes' => [
-                                ['name' => 'order_id', 'value' => $data['order_id']],
-                                ['name' => 'invoice_id', 'value' => $data['order_id']],
-                            ],
-                            'handling_attributes' => [
-                                ['name' => 'isFragile', 'value' => 'false'],
-                                ['name' => 'isDangerous', 'value' => 'false'],
-                            ]
-                        ];
-
-                        $productDataForDb[] = [
-                            'product_sku' => $data["product_name_$i"] ?? '',
-                            'product_name' => $data["product_name_$i"] ?? '',
-                            'product_value' => (float) ($data["product_unit_price_$i"] ?? 0),
-                            'product_category' => $data["product_category_$i"] ?? 'Uncategorized',
-                            'product_quantity' => (int) ($data["product_quantity_$i"] ?? 1),
-                        ];
+                    // Check for no wallet, insufficient funds, or negative balance
+                    if (!$wallet || $wallet->amount <= 0 || $wallet->amount < $chargeableAmount) {
+                        $errors[] = 'Insufficient Balance for order at row ' . ($rowIndex + 1) . '. Please recharge your wallet!';
+                        continue; // Skip to the next row
                     }
-                }
 
-                // Prepare full payload
-                $payload = [
-                    'client_name' => 'HRD',
-                    'goods_category' => 'ESSENTIAL',
-                    'services' => [
-                        [
-                            'service_code' => 'ECONOMY',
-                            'service_details' => [
-                                [
-                                    'service_leg' => 'FORWARD',
-                                    'service_data' => [
-                                        'service_types' => [
-                                            ['name' => 'regional_handover', 'value' => 'true'],
-                                            ['name' => 'delayed_dispatch', 'value' => 'false'],
+                    $productDataForDb = [];
+                    $shipmentItems = [];
+                    for ($i = 1; $i <= 3; $i++) {
+                        $nameKey = "product_name_$i";
+                        if (!empty($data[$nameKey])) {
+                            $shipmentItems[] = [
+                                'product_id' => $data["product_name_$i"] ?? '',
+                                'category' => $data["product_category_$i"] ?? 'Uncategorized',
+                                'product_title' => $data["product_name_$i"] ?? '',
+                                'quantity' => (int) ($data["product_quantity_$i"] ?? 1),
+                                'cost' => [
+                                    'total_sale_value' => (float) ($data["product_unit_price_$i"] ?? 0),
+                                    'total_tax_value' => 0,
+                                    'tax_breakup' => [
+                                        'cgst' => 0,
+                                        'sgst' => 0,
+                                        'igst' => 0,
+                                    ]
+                                ],
+                                'seller_details' => [
+                                    'seller_reg_name' => 'shiparcel',
+                                    'gstin_id' => null
+                                ],
+                                'hsn' => $data["product_name_$i"] ?? '',
+                                'ern' => null,
+                                'discount' => null,
+                                'item_attributes' => [
+                                    ['name' => 'order_id', 'value' => $data['order_id']],
+                                    ['name' => 'invoice_id', 'value' => $data['order_id']],
+                                ],
+                                'handling_attributes' => [
+                                    ['name' => 'isFragile', 'value' => 'false'],
+                                    ['name' => 'isDangerous', 'value' => 'false'],
+                                ]
+                            ];
+
+                            $productDataForDb[] = [
+                                'product_sku' => $data["product_name_$i"] ?? '',
+                                'product_name' => $data["product_name_$i"] ?? '',
+                                'product_value' => (float) ($data["product_unit_price_$i"] ?? 0),
+                                'product_category' => $data["product_category_$i"] ?? 'Uncategorized',
+                                'product_quantity' => (int) ($data["product_quantity_$i"] ?? 1),
+                            ];
+                        }
+                    }
+
+                    // Prepare full payload
+                    $payload = [
+                        'client_name' => 'HRD',
+                        'goods_category' => 'ESSENTIAL',
+                        'services' => [
+                            [
+                                'service_code' => 'ECONOMY',
+                                'service_details' => [
+                                    [
+                                        'service_leg' => 'FORWARD',
+                                        'service_data' => [
+                                            'service_types' => [
+                                                ['name' => 'regional_handover', 'value' => 'true'],
+                                                ['name' => 'delayed_dispatch', 'value' => 'false'],
+                                            ],
+                                            'vendor_name' => 'Ekart',
+                                            'amount_to_collect' => (string) ($data['total_amount'] ?? '0'),
+                                            'dispatch_date' => now()->format('Y-m-d H:i:s'),
+                                            'customer_promise_date' => null,
+                                            'delivery_type' => 'SMALL',
+                                            'source' => [
+                                                'address' => $sourceAddress
+                                            ],
+                                            'destination' => [
+                                                'address' => [
+                                                    'first_name' => $data['destination_name'],
+                                                    'primary_contact_number' => $data['destination_mobile'],
+                                                    'address_line1' => $data['destination_address1'],
+                                                    'address_line2' => $data['destination_address2'],
+                                                    'pincode' => $data['destination_pincode'],
+                                                    'city' => $data['destination_city'],
+                                                    'state' => $data['destination_state']
+                                                ]
+                                            ],
+                                            'return_location' => [
+                                                'address' => $returnAddress ?? $sourceAddress
+                                            ],
                                         ],
-                                        'vendor_name' => 'Ekart',
-                                        'amount_to_collect' => (string) ($data['total_amount'] ?? '0'),
-                                        'dispatch_date' => now()->format('Y-m-d H:i:s'),
-                                        'customer_promise_date' => null,
-                                        'delivery_type' => 'SMALL',
-                                        'source' => [
-                                            'address' => $sourceAddress
-                                        ],
-                                        'destination' => [
-                                            'address' => [
-                                                'first_name' => $data['destination_name'],
-                                                'primary_contact_number' => $data['destination_mobile'],
-                                                'address_line1' => $data['destination_address1'],
-                                                'address_line2' => $data['destination_address2'],
-                                                'pincode' => $data['destination_pincode'],
-                                                'city' => $data['destination_city'],
-                                                'state' => $data['destination_state']
-                                            ]
-                                        ],
-                                        'return_location' => [
-                                            'address' => $returnAddress ?? $sourceAddress
-                                        ],
-                                    ],
-                                    'shipment' => [
-                                        'client_reference_id' => $Tracking_id,
-                                        'tracking_id' => $Tracking_id,
-                                        'shipment_value' => (float) ($data['total_amount'] ?? 0),
-                                        'shipment_dimensions' => [
-                                            'length' => ['value' => (float) ($data['length'] ?? 0.5)],
-                                            'breadth' => ['value' => (float) ($data['width'] ?? 0.5)],
-                                            'height' => ['value' => (float) ($data['height'] ?? 0.5)],
-                                            'weight' => ['value' => (float) ($data['dead_weight'] ?? 0.5)],
-                                        ],
-                                        'return_label_desc_1' => null,
-                                        'return_label_desc_2' => null,
-                                        'shipment_items' => $shipmentItems
+                                        'shipment' => [
+                                            'client_reference_id' => $Tracking_id,
+                                            'tracking_id' => $Tracking_id,
+                                            'shipment_value' => (float) ($data['total_amount'] ?? 0),
+                                            'shipment_dimensions' => [
+                                                'length' => ['value' => (float) ($data['length'] ?? 0.5)],
+                                                'breadth' => ['value' => (float) ($data['width'] ?? 0.5)],
+                                                'height' => ['value' => (float) ($data['height'] ?? 0.5)],
+                                                'weight' => ['value' => (float) ($data['dead_weight'] ?? 0.5)],
+                                            ],
+                                            'return_label_desc_1' => null,
+                                            'return_label_desc_2' => null,
+                                            'shipment_items' => $shipmentItems
+                                        ]
                                     ]
                                 ]
                             ]
                         ]
-                    ]
-                ];
+                    ];
 
-                try {
-                    // if ($user->id !== 5) {
+                    try {
                         $url = 'https://api.ekartlogistics.com/v2/shipments/create';
                         $response = EkartApiService::sendRequest($url, $payload);
-                    // }
 
-                    if ($response->successful()) {
-                        $responseData = $response->json();
-                        Log::info('API Response:', $responseData);
-                        $response = $responseData['response'][0] ?? [];
+                        if ($response->successful()) {
+                            $responseData = $response->json();
+                            Log::info('API Response:', $responseData);
+                            $response = $responseData['response'][0] ?? [];
 
-                        if (!$response['status']) {
-                            $errors[] = 'Error for row ' . ($rowIndex + 1) . ': ' . $responseData['responsemsg'][0];
+                            if (!$response['status']) {
+                                $responseBody = $response->json();
+                                $errorMsg = $responseBody['responsemsg'] ?? 'Unknown error occurred';
+                                $errors[] = 'API Error for row ' . ($rowIndex + 1) . ': ' . $errorMsg;
+
+                                // Add to error rows for CSV
+                                $errorRow = array_merge($row, [$errorMsg]);
+                                $errorRows[] = $errorRow;
+                                $failedCount++;
+                                continue; // Skip to the next row
+                            }
+
+                            // Save order to the database
+                            $dbData = [
+                                'user_id' => $user->id,
+                                'awb_number' => $Tracking_id,
+                                'order_number' => $data['order_id'],
+                                'client_order_id' => $data['order_id'],
+                                'payment_mode' => $data['payment_mode'],
+                                'order_amount' => (float) ($data['total_amount'] ?? 0),
+                                'shipment_length' => (float) ($data['length'] ?? 0.5),
+                                'shipment_width' => (float) ($data['width'] ?? 0.5),
+                                'shipment_height' => (float) ($data['height'] ?? 0.5),
+                                'shipment_weight' => (float) ($data['dead_weight'] ?? 0.5),
+                                'consignee_name' => $data['destination_name'],
+                                'consignee_mobile' => $data['destination_mobile'],
+                                'consignee_address1' => $data['destination_address1'],
+                                'consignee_address2' => $data['destination_address2'],
+                                'consignee_pincode' => $data['destination_pincode'],
+                                'pick_address_id' => $data['pickup_id'],
+                                'return_address_id' => $data['return_id'] ?? $data['pickup_id'],
+                                'courier_name' => 'Ekart',
+                                'partner_display_name' => 'Ekart',
+                                'ekart_tracking_id' => $response['tracking_id'] ?? null,
+                                'ekart_shipment_payment_link' => $response['shipment_payment_link'] ?? null,
+                                'ekart_api_status' => $response['status'] ?? null,
+                                'ekart_api_status_code' => $response['status_code'] ?? null,
+                                'ekart_is_parked' => $response['is_parked'] ?? null,
+                                'ekart_request_id' => $responseData['request_id'] ?? null,
+                                'status' => 221,
+                            ];
+
+                            $order = Order::create($dbData);
+
+                            foreach ($productDataForDb as $product) {
+                                $product['order_id'] = $order->id;
+                                Product::create($product);
+                            }
+
+                            // Update wallet balance
+                            $totalAmount = Wallet::where('user_id', $user->id)->first();
+                            if ($totalAmount) {
+                                $updatedAmount = $totalAmount->amount - $chargeableAmount;
+                                $totalAmount->update(['amount' => $updatedAmount]);
+                            } else {
+                                Wallet::create([
+                                    'user_id' => $user->id,
+                                    'amount' => -$chargeableAmount
+                                ]);
+                            }
+
+                            // Update wallet transactions
+                            $walletTransactions = WalletTransaction::where([
+                                'user_id' => Auth::id(),
+                                'status' => 101
+                            ])->get();
+
+                            foreach ($walletTransactions as $transaction) {
+                                $transaction->update(['status' => 102]);
+                            }
+
+                            $user->logActivity($user, 'Order created successfully', 'order_created');
+                            $successCount++;
+                        } else {
+                            $responseBody = $response->json();
+                            $errorMsg = $responseBody['responsemsg'] ?? 'Unknown error occurred';
+                            $errors[] = 'API Error for row ' . ($rowIndex + 1) . ': ' . $errorMsg;
+
+                            // Add to error rows for CSV
+                            $errorRow = array_merge($row, [$errorMsg]);
+                            $errorRows[] = $errorRow;
+                            $failedCount++;
+                            continue;
+                        }
+                    } catch (Exception $e) {
+                        $errorMsg = $e->getMessage();
+                        $errors[] = 'Exception for row ' . ($rowIndex + 1) . ': ' . $errorMsg;
+
+                        // Add to error rows for CSV
+                        $errorRow = array_merge($row, [$errorMsg]);
+                        $errorRows[] = $errorRow;
+                        $failedCount++;
+                    }
+                }
+            }elseif($courier_id == '2'){
+                foreach ($rows as $rowIndex => $row) {
+                    $data = array_combine($header, $row);
+
+                    // Generate tracking id for XpressBees (if needed)
+                    $Tracking_id = 'XPR' . mt_rand(100000, 999999);
+
+                    // Get warehouses (same as your existing code)
+                    $pickupWarehouse = Warehouse::where([
+                        'status' => 1,
+                        'user_id' => $user->id,
+                        'id' => $data['pickup_id']
+                    ])->first();
+
+                    // If return address is enabled, fetch it; else, we'll use pickupWarehouse again
+                    $returnWarehouse = Warehouse::where([
+                        'status' => 1,
+                        'user_id' => $user->id,
+                        'id' => $data['return_id']
+                    ])->first();
+
+                    // Prepare XpressBees payload
+                    $xpressPayload = [
+                        "BusinessAccountName" => "ANKUR PARSHAR",
+                        "OrderNo" => $data['order_id'],
+                        "SubOrderNo" => $data['order_id'] . '-1',
+                        "OrderType" => ($data['payment_mode'] === 'Cod') ? 'COD' : 'PrePaid',
+                        "CollectibleAmount" => ($data['payment_mode'] === 'Cod') ? (string)$data['total_amount'] : "0",
+                        "DeclaredValue" => (string)($data['total_amount'] ?? "0"),
+                        "PickupType" => "Vendor",
+                        "Quantity" => 1,
+                        "ServiceType" => "SD",
+
+                        "DropDetails" => [
+                            "Addresses" => [[
+                                "Address" => $data['destination_address1'],
+                                "City" => $data['destination_city'] ?? '',
+                                "EmailID" => '',
+                                "Name" => $data['destination_name'],
+                                "PinCode" => $data['destination_pincode'],
+                                "State" => $data['destination_state'] ?? '',
+                                "Type" => "Primary",
+                            ]],
+                            "ContactDetails" => [[
+                                "PhoneNo" => $data['destination_mobile'],
+                                "Type" => "Primary",
+                            ]],
+                        ],
+
+                        "PickupDetails" => [
+                            "Addresses" => [[
+                                "Address" => $pickupWarehouse->full_address ?? '',
+                                "City" => $pickupWarehouse->city ?? '',
+                                "EmailID" => '',
+                                "Name" => $pickupWarehouse->sender_name ?? '',
+                                "PinCode" => $pickupWarehouse->pincode ?? '',
+                                "State" => $pickupWarehouse->state ?? '',
+                                "Type" => "Primary",
+                            ]],
+                            "ContactDetails" => [[
+                                "PhoneNo" => $pickupWarehouse->phone ?? '',
+                                "Type" => "Primary",
+                            ]],
+                            "PickupVendorCode" => env('XPRESSBEES_VENDOR_CODE', 'YOUR_VENDOR_CODE')
+                        ],
+
+                        "RTODetails" => [
+                            "Addresses" => [[
+                                "Address" => $returnWarehouse->full_address ?? $pickupWarehouse->full_address ?? '',
+                                "City" => $returnWarehouse->city ?? $pickupWarehouse->city ?? '',
+                                "EmailID" => '',
+                                "Name" => $returnWarehouse->sender_name ?? $pickupWarehouse->sender_name ?? '',
+                                "PinCode" => $returnWarehouse->pincode ?? $pickupWarehouse->pincode ?? '',
+                                "State" => $returnWarehouse->state ?? $pickupWarehouse->state ?? '',
+                                "Type" => "Primary",
+                            ]],
+                            "ContactDetails" => [[
+                                "PhoneNo" => $returnWarehouse->phone ?? $pickupWarehouse->phone ?? '',
+                                "Type" => "Primary",
+                            ]],
+                        ],
+
+                        "ManifestID" => $data['order_id'],
+                        "IsEssential" => "false",
+                        "IsSecondaryPacking" => "false",
+
+                        "PackageDetails" => [
+                            "Dimensions" => [
+                                "Height" => (string)($data['height'] ?? "1"),
+                                "Length" => (string)($data['length'] ?? "1"),
+                                "Width" => (string)($data['width'] ?? "1"),
+                            ],
+                            "Weight" => [
+                                "BillableWeight" => (string)($data['dead_weight'] ?? "1"),
+                                "PhyWeight" => (string)($data['dead_weight'] ?? "1"),
+                                "VolWeight" => "0"
+                            ]
+                        ]
+                    ];
+
+                    // Prepare product data for GST/HSN details
+                    $invoiceNumber = 'ship' . mt_rand(100000, 999999);
+                    $gstSellerInfo = [
+                        "BuyerGSTRegNumber" => '',
+                        "EWayBillSrNumber" => "",
+                        "InvoiceDate" => now()->format('d-m-Y'),
+                        "InvoiceNumber" => $invoiceNumber,
+                        "IsSellerRegUnderGST" => "",
+                        "ProductUniqueID" => "",
+                        "SellerAddress" => '',
+                        "SellerGSTRegNumber" => '',
+                        "SellerName" => '',
+                        "SellerPincode" => '',
+                        "SupplySellerStatePlace" => '',
+                        "HSNDetails" => []
+                    ];
+
+                    $productDataForDb = [];
+                    $productCount = 0;
+
+                    // Process products (same as your existing loop)
+                    for ($i = 1; $i <= 3; $i++) {
+                        $nameKey = "product_name_$i";
+                        if (!empty($data[$nameKey])) {
+                            $productCount++;
+
+                            $gstSellerInfo['HSNDetails'][] = [
+                                "ProductCategory" => $data["product_category_$i"] ?? 'General',
+                                "ProductDesc" => $data["product_name_$i"] ?? '',
+                                "CGSTAmount" => '',
+                                "SGSTAmount" => '',
+                                "GSTTaxTotal" => '',
+                                "HSNCode" => $data["product_hsn_$i"] ?? '',
+                                "TaxableValue" => (float)($data["product_unit_price_$i"] ?? 0)
+                            ];
+
+                            $productDataForDb[] = [
+                                'product_sku' => $data["product_name_$i"] ?? '',
+                                'product_name' => $data["product_name_$i"] ?? '',
+                                'product_value' => (float)($data["product_unit_price_$i"] ?? 0),
+                                'product_category' => $data["product_category_$i"] ?? 'Uncategorized',
+                                'product_quantity' => (int)($data["product_quantity_$i"] ?? 1),
+                            ];
+                        }
+                    }
+
+                    // Update quantity based on actual products
+                    $xpressPayload['Quantity'] = $productCount;
+                    $xpressPayload['GSTMultiSellerInfo'][] = $gstSellerInfo;
+
+                    // dd($xpressPayload);
+                    // Wallet check (same as your existing code)
+                    $chargeableAmount = $user->chargeable_amount;
+                    $wallet = Wallet::where('user_id', $user->id)->first();
+                    if (!$wallet || $wallet->amount <= 0 || $wallet->amount < $chargeableAmount) {
+                        $errors[] = 'Insufficient Balance for order at row ' . ($rowIndex + 1) . '. Please recharge your wallet!';
+                        continue;
+                    }
+
+                    try {
+                        // Call XpressBees API
+                        $response = XpressbeesApiService::sendForwardManifest($xpressPayload);
+
+                        if (isset($response['error']) && $response['error']) {
+                            $responseBody = $response['message'];
+                            $errorMsg = $responseBody['ReturnMessage'] ?? 'Unknown error occurred';
+                            $errors[] = 'API Error for row ' . ($rowIndex + 1) . ': ' . $errorMsg;
+
+                            // Add to error rows for CSV
+                            $errorRow = array_merge($row, [$errorMsg]);
+                            $errorRows[] = $errorRow;
+                            $failedCount++;
                             continue; // Skip to the next row
                         }
 
-                        // Save order to the database
+                        if (!isset($response['ReturnCode']) || $response['ReturnCode'] != 100) {
+                            $responseBody = $response['message'];
+                            $errorMsg = $responseBody['ReturnMessage'] ?? 'Unknown error occurred';
+                            $errors[] = 'API Error for row ' . ($rowIndex + 1) . ': ' . $errorMsg;
+
+                            // Add to error rows for CSV
+                            $errorRow = array_merge($row, [$errorMsg]);
+                            $errorRows[] = $errorRow;
+                            $failedCount++;
+                            continue; // Skip to the next row
+                        }
+
+                        // Prepare database data
                         $dbData = [
                             'user_id' => $user->id,
-                            'awb_number' => $Tracking_id,
+                            'awb_number' => $response['AWBNo'] ?? null,
                             'order_number' => $data['order_id'],
                             'client_order_id' => $data['order_id'],
                             'payment_mode' => $data['payment_mode'],
-                            'order_amount' => (float) ($data['total_amount'] ?? 0),
-                            'shipment_length' => (float) ($data['length'] ?? 0.5),
-                            'shipment_width' => (float) ($data['width'] ?? 0.5),
-                            'shipment_height' => (float) ($data['height'] ?? 0.5),
-                            'shipment_weight' => (float) ($data['dead_weight'] ?? 0.5),
+                            'order_amount' => (float)($data['total_amount'] ?? 0),
+                            'shipment_length' => (float)($data['length'] ?? 0.5),
+                            'shipment_width' => (float)($data['width'] ?? 0.5),
+                            'shipment_height' => (float)($data['height'] ?? 0.5),
+                            'shipment_weight' => (float)($data['dead_weight'] ?? 0.5),
                             'consignee_name' => $data['destination_name'],
                             'consignee_mobile' => $data['destination_mobile'],
                             'consignee_address1' => $data['destination_address1'],
@@ -957,15 +1239,16 @@ class OrderController extends Controller
                             'consignee_pincode' => $data['destination_pincode'],
                             'pick_address_id' => $data['pickup_id'],
                             'return_address_id' => $data['return_id'] ?? $data['pickup_id'],
-                            'courier_name' => 'Ekart',
-                            'partner_display_name' => 'Ekart',
-                            'ekart_tracking_id' => $response['tracking_id'] ?? null,
-                            'ekart_shipment_payment_link' => $response['shipment_payment_link'] ?? null,
-                            'ekart_api_status' => $response['status'] ?? null,
-                            'ekart_api_status_code' => $response['status_code'] ?? null,
-                            'ekart_is_parked' => $response['is_parked'] ?? null,
-                            'ekart_request_id' => $responseData['request_id'] ?? null,
+                            'courier_name' => 'XpressBees',
+                            'partner_display_name' => 'XpressBees',
+                            'xpressbees_awb_no' => $response['AWBNo'] ?? null,
+                            'xpressbees_api_status_code' => $response['ReturnCode'] ?? null,
+                            'xpressbees_api_status' => $response['ReturnMessage'] ?? null,
+                            'xpressbees_token_number' => $response['TokenNumber'] ?? null,
+                            'xpressbees_is_parked' => $response['IsParked'] ?? null,
+                            'xpressbees_payment_link' => $response['ShipmentPaymentLink'] ?? null,
                             'status' => 221,
+                            'invoice_number' => $invoiceNumber,
                         ];
 
                         $order = Order::create($dbData);
@@ -975,19 +1258,13 @@ class OrderController extends Controller
                             Product::create($product);
                         }
 
-                        // Update wallet balance
+                        // Update wallet (same as your existing code)
                         $totalAmount = Wallet::where('user_id', $user->id)->first();
                         if ($totalAmount) {
                             $updatedAmount = $totalAmount->amount - $chargeableAmount;
                             $totalAmount->update(['amount' => $updatedAmount]);
-                        } else {
-                            Wallet::create([
-                                'user_id' => $user->id,
-                                'amount' => -$chargeableAmount
-                            ]);
                         }
 
-                        // Update wallet transactions
                         $walletTransactions = WalletTransaction::where([
                             'user_id' => Auth::id(),
                             'status' => 101
@@ -997,24 +1274,55 @@ class OrderController extends Controller
                             $transaction->update(['status' => 102]);
                         }
 
-                        $user->logActivity($user, 'Order created successfully', 'order_created');
                         $successCount++;
-                    } else {
-                        $responseBody = $response->json();
-                        $errors[] = 'API Error for row ' . ($rowIndex + 1) . ': ' . ($responseBody['responsemsg'] ?? 'Unknown error occurred');
+
+                    } catch (Exception $e) {
+                        $errorMsg = $e->getMessage();
+                        $errors[] = 'Exception for row ' . ($rowIndex + 1) . ': ' . $errorMsg;
+
+                        // Add to error rows for CSV
+                        $errorRow = array_merge($row, [$errorMsg]);
+                        $errorRows[] = $errorRow;
+                        $failedCount++;
                     }
-                } catch (Exception $e) {
-                    Log::error('Exception for row ' . ($rowIndex + 1) . ':', ['message' => $e->getMessage()]);
-                    $errors[] = 'An error occurred for row ' . ($rowIndex + 1) . ': ' . $e->getMessage();
                 }
             }
 
-            // Prepare final response
+
+            $errorFileUrl = null;
             if (!empty($errors)) {
-                return back()->with('error', implode('<br>', $errors));
+                $errorFilename = 'errors_' . $filename;
+                $errorFilePath = public_path('uploads/' . $errorFilename);
+
+                $file = fopen($errorFilePath, 'w');
+                foreach ($errorRows as $errorRow) {
+                    fputcsv($file, $errorRow);
+                }
+                fclose($file);
+
+                $errorFileUrl = url('uploads/' . $errorFilename);
+            }
+            // Prepare final response
+            $responseData = [
+                'success_count' => $successCount,
+                'failed_count' => $failedCount,
+                'errors' => $errors,
+                'error_file_url' => $errorFileUrl
+            ];
+
+            if ($failedCount > 0) {
+                return back()
+                    ->with('error', "$failedCount orders failed. $successCount orders succeeded.")
+                    ->with('error_details', $errors)
+                    ->with('error_file', $errorFileUrl)
+                    ->with('success_count', $successCount)
+                    ->with('failed_count', $failedCount);
             }
 
-            return back()->with('success', "$successCount orders placed successfully.");
+            return back()
+                ->with('success', "$successCount orders placed successfully.")
+                ->with('success_count', $successCount);
+
         }
         return back()->with('error', 'No CSV file uploaded.');
     }

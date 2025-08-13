@@ -10,14 +10,11 @@
             <h6 class="mb-4 text-xl">Create Single Order</h6>
             <p class="text-neutral-500">Fill up your details and proceed next steps.</p>
             <p>
-                @if (session('success'))
-            <div class="alert alert-success">
-                {{ session('success') }}
-            </div>
-            @endif
-
-            @if (session('error'))
-            <div class="alert alert-danger">{{ session('error') }}</div>
+            @if(session('error_file'))
+                <div class="alert alert-info">
+                    <p>Some orders failed. <a href="{{ session('error_file') }}" download>Download error file</a></p>
+                    <p>Success: {{ session('success_count') ?? 0 }}, Failed: {{ session('failed_count') ?? 0 }}</p>
+                </div>
             @endif
             </p>
             <!-- Form Wizard Start -->
@@ -411,27 +408,55 @@
                             <!-- canceled -->
                             <div class="tab-pane fade" id="pills-ui-design" role="tabpanel" aria-labelledby="pills-ui-design-tab">
                                <div class="container">
+                                    <form class="form" method="POST" id="form-builder" action="{{ route('bulk.order') }}" enctype="multipart/form-data">
+                                    @csrf
                                     <div class="row">
-                                        <form class="form" method="POST" id="form-builder" action="{{ route('bulk.order') }}" enctype="multipart/form-data">
-                                            @csrf
-                                            <div class="col-md-6">
-                                                <div class="card h-100 p-0">
-                                                    <div class="card-header border-bottom bg-base py-16 px-24">
-                                                        <a href="{{ asset('assets/bulk_order_sample.csv') }}" download>Download Sample</a>
-                                                    </div>
-                                                    <div class="card-body p-24">
-                                                        <label for="file-upload-name" class="mb-16 border border-neutral-600 fw-medium text-secondary-light px-16 py-12 radius-12 d-inline-flex align-items-center gap-2 bg-hover-neutral-200">
-                                                            <iconify-icon icon="solar:upload-linear" class="text-xl"></iconify-icon>
-                                                            Click to upload
-                                                            <input type="file" name="multiple_shipment" accept=".csv" class="form-control w-auto mt-24 form-control-lg" id="file-upload-name" hidden>
-                                                        </label>
-                                                        <ul id="uploaded-img-names"></ul>
-                                                        <button class="btn btn-sm btn-primary" type="submit">Process Bulk</button>
-                                                    </div>
+                                        <div class="col-md-4">
+                                            <div class="card h-100 p-0">
+                                                <div class="card-header border-bottom bg-base py-16 px-24">
+                                                    <a href="{{ asset('assets/bulk_order_sample.csv') }}" download>Download Sample</a>
+                                                </div>
+                                                <div class="card-body p-24">
+                                                    <label for="file-upload-name" class="mb-16 border border-neutral-600 fw-medium text-secondary-light px-16 py-12 radius-12 d-inline-flex align-items-center gap-2 bg-hover-neutral-200">
+                                                        <iconify-icon icon="solar:upload-linear" class="text-xl"></iconify-icon>
+                                                        Click to upload
+                                                        <input type="file" name="multiple_shipment" accept=".csv" class="form-control w-auto mt-24 form-control-lg" id="file-upload-name" hidden>
+                                                    </label>
+                                                    <ul id="uploaded-img-names"></ul>
+                                                    <button class="btn btn-sm btn-primary" type="submit">Process Bulk</button>
                                                 </div>
                                             </div>
-                                        </form>
+                                        </div>
+                                        <div class="col-md-8">
+                                            <label class="fw-bold mb-2">Select Courier</label>
+                                            @php
+                                                $selectedCourier = old('selected_courier', 1); // Default Ekart id = 1
+                                            @endphp
+
+                                            <div class="row">
+                                                @foreach($couriers as $courier)
+                                                    <div class="col-md-4 mb-2">
+                                                        <div class="form-check d-flex align-items-center">
+                                                            <input class="form-check-input me-2"
+                                                                type="radio"
+                                                                name="selected_courier"
+                                                                id="courier_{{ $courier->id }}"
+                                                                value="{{ $courier->id }}"
+                                                                {{ $courier->id == $selectedCourier ? 'checked' : '' }}>
+
+                                                            <label class="form-check-label d-flex align-items-center" for="courier_{{ $courier->id }}">
+                                                                <img src="{{ asset($courier->image_url) }}"
+                                                                    alt="{{ $courier->name }}"
+                                                                    style="height: 25px;"
+                                                                    class="me-2">
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                @endforeach
+                                            </div>
+                                        </div>
                                     </div>
+                                    </form>
                                </div>
                             </div>
                         </div>
