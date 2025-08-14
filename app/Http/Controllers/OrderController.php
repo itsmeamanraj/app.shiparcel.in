@@ -178,7 +178,7 @@ class OrderController extends Controller
                 if ($request->has('product_name') && is_array($request->product_name)) {
                     foreach ($request->product_name as $index => $product_name) {
                         $apiData['services'][0]['service_details'][0]['shipment']['shipment_items'][] = [
-                            'product_id' => $request->product_sku[$index] ?? '',
+                            //'product_id' => $request->product_sku[$index] ?? '',
                             'category' => $request->product_category[$index] ?? 'Uncategorized',
                             'product_title' => $product_name,
                             'quantity' => (int) ($request->product_quantity[$index] ?? 1),
@@ -579,7 +579,7 @@ class OrderController extends Controller
                 'payment_mode',
                 'status',
                 'created_at'
-            ]);
+            ])->orderBy('id','desc');
 
         if (!empty($search)) {
             $baseQuery->where('awb_number', 'LIKE', "%{$search}%");
@@ -826,7 +826,7 @@ class OrderController extends Controller
                         $nameKey = "product_name_$i";
                         if (!empty($data[$nameKey])) {
                             $shipmentItems[] = [
-                                'product_id' => $data["product_name_$i"] ?? '',
+                                //'product_id' => $data["product_name_$i"] ?? '',
                                 'category' => $data["product_category_$i"] ?? 'Uncategorized',
                                 'product_title' => $data["product_name_$i"] ?? '',
                                 'quantity' => (int) ($data["product_quantity_$i"] ?? 1),
