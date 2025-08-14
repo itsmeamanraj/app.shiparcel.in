@@ -324,21 +324,18 @@ class OrderController extends Controller
                     foreach ($walletTransactions as $transaction) {
                         $transaction->update(['status' => 102]);
                     }
-                    // $user->logActivity($user, 'Order created successfully', 'order_created');
+                    // $user->logActivity($user, 'Order created successfully', 'order_created')
 
-                    session()->flash('success', 'Order placed successfully! Tracking Id: ' . $response['tracking_id']);
-                    return redirect()->back();
+                    return redirect()->back()->with('success', 'Order created successfully Tracking Id: ' . $response['tracking_id']);
                 } else {
                     $responseBody = $response->json();
                     Log::error('API Error:', ['response' => $responseBody]);
 
-                    session()->flash('error', $responseBody['responsemsg'] ?? 'Unknown error occurred');
-                    return redirect()->back();
+                    return redirect()->back()->with('error', $responseBody['responsemsg'] ?? 'Unknown error occurred');
                 }
             } catch (Exception $e) {
                 Log::error('Ekart Exception:', ['message' => $e->getMessage()]);
-                session()->flash('error', 'An error occurred: ' . $e->getMessage());
-                return redirect()->back();
+                return redirect()->back()->with('error', 'An error occurred: ' . $e->getMessage());
             }
         }else if($courier_id == 2) { // XpressBees
             try {
@@ -552,14 +549,11 @@ class OrderController extends Controller
                 foreach ($walletTransactions as $transaction) {
                     $transaction->update(['status' => 102]);
                 }
-
-                session()->flash('success', 'Order placed successfully! AWB: ' . ($dbData['xpressbees_awb_no'] ?? ''));
-                return redirect()->back();
+                return redirect()->back()->with('success', 'Order created successfully! AWB: ' .($dbData['xpressbees_awb_no'] ?? ''));
 
             } catch (Exception $e) {
                 Log::error('XpressBees Exception:', ['message' => $e->getMessage()]);
-                session()->flash('error', 'XpressBees Error: ' . $e->getMessage());
-                return redirect()->back();
+               return redirect()->back()->with('error', 'XpressBees Error: ' . $e->getMessage());
             }
         }
 
