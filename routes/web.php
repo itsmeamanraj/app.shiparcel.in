@@ -52,3 +52,8 @@ Route::post('/logout', [UserAuthController::class, 'logout'])->name('logout');
 Route::get('/generate-token/aaa', function () {
     return EkartApiService::getBearerToken();
 });
+Route::get('/tracking', [ShipmentTrackingController::class, 'getTracking']);
+
+Route::get('/track', function () {
+    return view('users.traking.traking');
+})->name('track.page');

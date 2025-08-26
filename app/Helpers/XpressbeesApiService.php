@@ -108,6 +108,51 @@ class XpressbeesApiService
             ];
         }
     }
+    public static function trackShipments(array $awbNumbers)
+    {
+        $results = [];
 
+        try {
+            $token = self::getBearerToken(); 
+
+            foreach ($awbNumbers as $awb) {
+                try {
+                    $response = Http::withHeaders([
+                        'Content-Type'  => 'application/json',
+                        'token'         => $token,
+                        'versionnumber' => 'v1',
+                    ])->post('https://apishipmenttracking.xbees.in/GetShipmentAuditLog', [
+                        'AWBNumber' => $awb
+                    ]);
+
+                    if ($response->successful()) {
+                        $results[$awb] = $response->json();
+                    } else {
+                        $results[$awb] = [
+                            'error' => 'Tracking API failed: ' . $response->body()
+                        ];
+                        Log::error("XpressBees tracking failed for AWB $awb: " . $response->body());
+                    }
+                } catch (\Exception $e) {
+                    $results[$awb] = [
+                        'error' => 'Exception: ' . $e->getMessage()
+                    ];
+                    Log::error("XpressBees tracking exception for AWB $awb: " . $e->getMessage());
+                }
+            }
+
+        } catch (\Exception $e) {
+            Log::error('XpressBees Tracking Batch Error', [
+                'message' => $e->getMessage(),
+                'awbs' => $awbNumbers
+            ]);
+
+            foreach ($awbNumbers as $awb) {
+                $results[$awb] = ['error' => $e->getMessage()];
+            }
+        }
+
+        return $results;
+    }
 
 }

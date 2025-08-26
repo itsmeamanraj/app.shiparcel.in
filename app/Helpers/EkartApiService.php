@@ -131,5 +131,59 @@ class EkartApiService
             );
         }
     }
+     public static function trackShipment(array $awbNumbers)
+    {
+        try {
+            // Step 1: Get Bearer Token
+            $tokenResponse = Http::withHeaders([
+                'Content-Type' => 'application/json',
+                'HTTP_X_MERCHANT_CODE' => 'HRD',
+                'Authorization' => 'Basic aGFyYmFsaHJkOmpNMGFpSlR2cjQ4MEcyaHk=',
+            ])->withOptions(['verify' => false])
+            ->post('https://api.ekartlogistics.com/auth/token');
+
+            if (!$tokenResponse->successful()) {
+                throw new \Exception('Failed to fetch token from Ekart. Status: ' . $tokenResponse->status());
+            }
+
+            $tokenData = $tokenResponse->json();
+
+            $authToken = $tokenData['access_token'] 
+                ?? (isset($tokenData['Authorization']) ? str_replace('Bearer ', '', $tokenData['Authorization']) : null);
+
+            if (!$authToken) {
+                throw new \Exception('Token not found in Ekart response.');
+            }
+
+            // Step 2: Call Tracking API
+            $trackingResponse = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $authToken,
+                'Content-Type' => 'application/json',
+                'HTTP_X_MERCHANT_CODE' => 'HRD',
+            ])->withOptions(['verify' => false])
+            ->post('https://api.ekartlogistics.com/v2/shipments/track', [
+                'tracking_ids' => $awbNumbers
+            ]);
+
+            if (!$trackingResponse->successful()) {
+                throw new \Exception('Tracking API failed: ' . $trackingResponse->body());
+            }
+
+            return $trackingResponse->json();
+
+        } catch (\Exception $e) {
+            Log::error('Ekart Tracking Error:', [
+                'message' => $e->getMessage(),
+                'tracking_ids' => $awbNumbers
+            ]);
+
+            $results = [];
+            foreach ($awbNumbers as $awb) {
+                $results[$awb] = ['error' => $e->getMessage()];
+            }
+            return $results;
+        }
+    }
+
 
 }

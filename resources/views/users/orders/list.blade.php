@@ -122,7 +122,15 @@
                                                 style="width: 16px; height: 16px;" onchange="handleCheckboxChange()">
                                             </td>
                                             <td>#{{ $order->id }}</td>
-                                            <td>{{ $order->awb_number ?? 'N/A' }}</td>
+                                            <td>
+                                            @if(!empty($order->awb_number))
+                                                <a href="{{ route('track.page') }}?awb={{ $order->awb_number }}" target="_blank">
+                                                {{ $order->awb_number }}
+                                                </a>
+                                            @else
+                                                N/A
+                                            @endif
+                                            </td>
                                             <td>{{ $order->consignee_name }}</td>
                                             <td>{{ $order->created_at->format('d M Y') }}</td>
                                             <td>₹{{ number_format($order->order_amount, 2) }}</td>
