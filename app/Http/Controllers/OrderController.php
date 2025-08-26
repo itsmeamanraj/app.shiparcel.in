@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 use Illuminate\Support\Facades\Http;
 use App\Helpers\EkartApiService;
 use App\Helpers\XpressbeesApiService;
-
 use App\Helpers\ParcelxHelper;
 use App\Http\Requests\CancelOrderRequest;
 use App\Models\Order;
@@ -15,7 +14,6 @@ use App\Models\Warehouse;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Response;
