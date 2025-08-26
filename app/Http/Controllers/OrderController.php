@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Http\Controllers;
-
+use Illuminate\Support\Facades\Http;
 use App\Helpers\EkartApiService;
 use App\Helpers\XpressbeesApiService;
 
@@ -623,35 +623,66 @@ class OrderController extends Controller
         $order = Order::where('awb_number', $awbNumber)->first();
         $user = Auth::user();
 
-        // Define the API URL for cancellation
-        $url = 'https://api.ekartlogistics.com/v3/shipments/rto/create';
+        if (!$order) {
+            return response()->json(['success' => false, 'message' => 'Order not found'], 404);
+        }
 
-        // Prepare the data for the request
-        $apiData = [
-            'request_details' => [
-                'tracking_id' => $awbNumber,
-                'reason' => 'Test Cancellation' // You can modify this reason as needed
-            ]
-        ];
+        $courier = strtolower($order->courier_name);
+        $responseData = null;
 
-        // Send the request using a helper function
-        $response = EkartApiService::sendRequest($url, $apiData, 'PUT');
-        $responseData = $response->json(); // Get response as an array
+        try {
+            if ($courier === 'ekart') {
+                // Ekart API
+                $url = 'https://api.ekartlogistics.com/v3/shipments/rto/create';
+                $apiData = [
+                    'request_details' => [
+                        'tracking_id' => $awbNumber,
+                        'reason' => 'Customer Cancelled'
+                    ]
+                ];
+                $response = EkartApiService::sendRequest($url, $apiData, 'PUT');
+                $responseData = $response->json();
 
-        // Debugging output (optional)
-        // dd($responseData);
+            } elseif ($courier === 'xpressbees') {
+                // XpressBees API
+                $url = 'https://clientshipupdatesapi.xbees.in/forwardcancellation';
+                $token = XpressbeesApiService::getBearerToken(); // Helper se token fetch
 
-        if ($response->successful()) {
-            $user->logActivity($user, 'Order canceled successfully', 'order_canceled');
+                $headers = [
+                    'Content-Type' => 'application/json',
+                    'token'        => $token,
+                    'versionnumber'=> 'v1'
+                ];
 
-            // Update the order status in the database
-            $order->update(['status' => '229']);
-            return response()->json(['success' => true, 'message' => 'Order canceled successfully']);
-        } else {
-            $user->logActivity($user, 'Exception: Order cancel Failed', 'order_failed');
+                $apiData = [
+                    'ShippingID' => $awbNumber,
+                    'CancellationReason' => 'Customer Cancelled'
+                ];
 
-            $errorMsg = $responseData['responsemsg'] ?? 'Failed to cancel order';
-            return response()->json(['success' => false, 'message' => $errorMsg], 400);
+                $response = Http::withHeaders($headers)->post($url, $apiData);
+                $responseData = $response->json();
+            } else {
+                return response()->json(['success' => false, 'message' => 'Courier not supported'], 400);
+            }
+
+            if ($response->successful()) {
+                $user->logActivity($user, 'Order canceled successfully', 'order_canceled');
+
+                $order->update(['status' => '229']); // Cancelled status
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Order canceled successfully',
+                    'api_response' => $responseData
+                ]);
+            } else {
+                $user->logActivity($user, 'Exception: Order cancel Failed', 'order_failed');
+                $errorMsg = $responseData['ReturnMessage'] ?? 'Failed to cancel order';
+                return response()->json(['success' => false, 'message' => $errorMsg], 400);
+            }
+
+        } catch (\Exception $e) {
+            $user->logActivity($user, 'Exception: ' . $e->getMessage(), 'order_failed');
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
 
@@ -1054,8 +1085,8 @@ class OrderController extends Controller
                         "BusinessAccountName" => "ANKUR PARSHAR",
                         "OrderNo" => $data['order_id'],
                         "SubOrderNo" => $data['order_id'] . '-1',
-                        "OrderType" => ($data['payment_mode'] === 'Cod') ? 'COD' : 'PrePaid',
-                        "CollectibleAmount" => ($data['payment_mode'] === 'Cod') ? (string)$data['total_amount'] : "0",
+                        "OrderType" => $data['payment_mode'],
+                        "CollectibleAmount" => (string)$data['total_amount'],
                         "DeclaredValue" => (string)($data['total_amount'] ?? "0"),
                         "PickupType" => "Vendor",
                         "Quantity" => 1,
@@ -1349,7 +1380,7 @@ class OrderController extends Controller
             'Tax',
             'Status',
             'Created At',
-            'Product Details', 
+            'Product Details',
             'Courier_name'
         ];
 
